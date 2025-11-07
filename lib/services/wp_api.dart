@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:mime/mime.dart';
 import 'package:http_parser/http_parser.dart';
 import 'app_storage.dart';
+import 'dart:typed_data';
 
 // ---- Modello semplice per un file ----
 class WpFileItem {
@@ -158,6 +158,82 @@ class WpApi {
       };
     } on SocketException catch (e) {
       return {'ok': false, 'status': 0, 'body': 'Errore di rete: $e'};
+    } catch (e) {
+      return {'ok': false, 'status': 0, 'body': 'Errore: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadBytes(
+    Uint8List bytes,
+    String filename, {
+    String? mime,
+  }) async {
+    final baseUrl = await AppStorage.getUrl();
+    final username = await AppStorage.getUsername();
+    final password = await AppStorage.getPassword();
+    if (baseUrl == null || baseUrl.isEmpty) {
+      return {'ok': false, 'status': 0, 'body': 'URL non configurato'};
+    }
+    if (username == null ||
+        username.isEmpty ||
+        password == null ||
+        password.isEmpty) {
+      return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
+    }
+
+    final uri = Uri.parse('$baseUrl/wp-json/fileuploader/v1/upload');
+    final req = http.MultipartRequest('POST', uri);
+
+    // Basic Auth
+    final auth = base64Encode(utf8.encode('$username:$password'));
+    req.headers['Authorization'] = 'Basic $auth';
+
+    final mediaType = (mime != null && mime.contains('/'))
+        ? MediaType(mime.split('/')[0], mime.split('/')[1])
+        : null;
+
+    req.files.add(
+      http.MultipartFile.fromBytes(
+        'file', // campo come da cURL
+        bytes,
+        filename: filename,
+        contentType: mediaType,
+      ),
+    );
+
+    try {
+      final streamed = await req.send();
+      final res = await http.Response.fromStream(streamed);
+      final ok = res.statusCode >= 200 && res.statusCode < 300;
+
+      String? remoteUrl;
+      final body = res.body.trim();
+      try {
+        final obj = jsonDecode(body);
+        if (obj is Map) {
+          remoteUrl =
+              (obj['url'] ?? obj['link'] ?? obj['source_url']) as String?;
+          if (remoteUrl == null &&
+              obj['guid'] is Map &&
+              obj['guid']['rendered'] is String) {
+            remoteUrl = obj['guid']['rendered'] as String;
+          }
+          if (remoteUrl == null && obj['guid'] is String)
+            remoteUrl = obj['guid'] as String;
+        } else if (obj is String) {
+          remoteUrl = obj;
+        }
+      } catch (_) {
+        final m = RegExp(r'https?://\S+').firstMatch(body);
+        if (m != null) remoteUrl = m.group(0);
+      }
+
+      return {
+        'ok': ok,
+        'status': res.statusCode,
+        'body': body,
+        'remoteUrl': remoteUrl,
+      };
     } catch (e) {
       return {'ok': false, 'status': 0, 'body': 'Errore: $e'};
     }
