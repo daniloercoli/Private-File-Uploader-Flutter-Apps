@@ -43,17 +43,13 @@ class _HomePageState extends State<HomePage> {
 
       if (bytes == null) {
         // fallback: niente byte disponibili (capita se withData:false o alcuni browser)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Selezione non valida (nessun contenuto). Riprova.'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Selezione non valida (nessun contenuto). Riprova.')));
         return;
       }
       final header = bytes.length >= 12 ? bytes.sublist(0, 12) : bytes;
-      final mime =
-          lookupMimeType(name, headerBytes: header) ??
-          'application/octet-stream';
+      final mime = lookupMimeType(name, headerBytes: header) ?? 'application/octet-stream';
       // memorizza per retry
       _lastBytes = bytes;
       _lastName = name;
@@ -64,9 +60,7 @@ class _HomePageState extends State<HomePage> {
       final path = picked.path;
       if (path == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Selezione file non valida')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selezione file non valida')));
         return;
       }
       _lastFilePath = path; // per retry
@@ -74,11 +68,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _uploadFromBytes(
-    Uint8List bytes,
-    String filename, {
-    String? mime,
-  }) async {
+  Future<void> _uploadFromBytes(Uint8List bytes, String filename, {String? mime}) async {
     setState(() {
       _uploading = true;
       _lastResult = null;
@@ -87,9 +77,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final res = await WpApi.uploadBytes(bytes, filename, mime: mime);
 
-      if (res['ok'] == true &&
-          res['remoteUrl'] is String &&
-          (res['remoteUrl'] as String).isNotEmpty) {
+      if (res['ok'] == true && res['remoteUrl'] is String && (res['remoteUrl'] as String).isNotEmpty) {
         final remoteUrl = res['remoteUrl'] as String;
 
         await AppStorage.addUploadedUrl(remoteUrl);
@@ -100,34 +88,21 @@ class _HomePageState extends State<HomePage> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Upload riuscito'),
-            content: const Text(
-              'Indirizzo del file copiato negli appunti.\nVuoi inviarlo per email?',
-            ),
+            content: const Text('Indirizzo del file copiato negli appunti.\nVuoi inviarlo per email?'),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('No'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Sì'),
-              ),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
+              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Sì')),
             ],
           ),
         );
 
         if (wantEmail == true) {
-          final uri = Uri(
-            scheme: 'mailto',
-            queryParameters: {'body': remoteUrl},
-          );
+          final uri = Uri(scheme: 'mailto', queryParameters: {'body': remoteUrl});
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
 
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Upload riuscito')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload riuscito')));
         setState(() => _lastResult = null);
       } else {
         final status = res['status'];
@@ -139,23 +114,14 @@ class _HomePageState extends State<HomePage> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Upload fallito'),
-            content: Text(
-              'Errore: HTTP $status\n\nVuoi riprovare ad inviare lo stesso file?',
-            ),
+            content: Text('Errore: HTTP $status\n\nVuoi riprovare ad inviare lo stesso file?'),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Chiudi'),
-              ),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi')),
               ElevatedButton(
                 onPressed: () async {
                   Navigator.of(ctx).pop();
                   if (_lastBytes != null && _lastName != null) {
-                    await _uploadFromBytes(
-                      _lastBytes!,
-                      _lastName!,
-                      mime: _lastMime,
-                    );
+                    await _uploadFromBytes(_lastBytes!, _lastName!, mime: _lastMime);
                   }
                 },
                 child: const Text('Riprova'),
@@ -173,11 +139,9 @@ class _HomePageState extends State<HomePage> {
     // opzionale: verifica che il file esista ancora
     if (!await File(path).exists()) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Il file non è più disponibile sul dispositivo'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Il file non è più disponibile sul dispositivo')));
       return;
     }
 
@@ -189,9 +153,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final res = await WpApi.uploadFile(path);
 
-      if (res['ok'] == true &&
-          res['remoteUrl'] is String &&
-          (res['remoteUrl'] as String).isNotEmpty) {
+      if (res['ok'] == true && res['remoteUrl'] is String && (res['remoteUrl'] as String).isNotEmpty) {
         final remoteUrl = res['remoteUrl'] as String;
 
         await AppStorage.addUploadedUrl(remoteUrl);
@@ -202,34 +164,21 @@ class _HomePageState extends State<HomePage> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Upload riuscito'),
-            content: const Text(
-              'Indirizzo del file copiato negli appunti.\nVuoi inviarlo per email?',
-            ),
+            content: const Text('Indirizzo del file copiato negli appunti.\nVuoi inviarlo per email?'),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('No'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Sì'),
-              ),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
+              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Sì')),
             ],
           ),
         );
 
         if (wantEmail == true) {
-          final uri = Uri(
-            scheme: 'mailto',
-            queryParameters: {'body': remoteUrl},
-          );
+          final uri = Uri(scheme: 'mailto', queryParameters: {'body': remoteUrl});
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
 
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Upload riuscito')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload riuscito')));
         setState(() => _lastResult = null);
       } else {
         // Fallimento: offri "Riprova" senza riselezione
@@ -242,14 +191,9 @@ class _HomePageState extends State<HomePage> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Upload fallito'),
-            content: Text(
-              'Errore: HTTP $status\n\nVuoi riprovare ad inviare lo stesso file?',
-            ),
+            content: Text('Errore: HTTP $status\n\nVuoi riprovare ad inviare lo stesso file?'),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Chiudi'),
-              ),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi')),
               ElevatedButton(
                 onPressed: () async {
                   Navigator.of(ctx).pop();
@@ -292,8 +236,8 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 8),
             // Pulsante Riprova rapido (funziona sia path che web bytes)
             if (!_uploading &&
-                ((_lastFilePath != null) ||
-                    (_lastBytes != null && _lastName != null)))
+                _lastResult != null &&
+                (_lastFilePath != null || (_lastBytes != null && _lastName != null)))
               OutlinedButton.icon(
                 onPressed: () {
                   if (_lastFilePath != null) {
