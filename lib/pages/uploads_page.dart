@@ -29,9 +29,7 @@ class _UploadsPageState extends State<UploadsPage> {
   Future<void> _copyUrl(String url) async {
     await Clipboard.setData(ClipboardData(text: url));
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('URL copiata negli appunti')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('URL copiata negli appunti')));
   }
 
   String _humanSize(int? bytes) {
@@ -48,43 +46,33 @@ class _UploadsPageState extends State<UploadsPage> {
 
   String _humanDate(int? epochSeconds) {
     if (epochSeconds == null) return '';
-    final dt = DateTime.fromMillisecondsSinceEpoch(
-      epochSeconds * 1000,
-      isUtc: false,
-    );
+    final dt = DateTime.fromMillisecondsSinceEpoch(epochSeconds * 1000, isUtc: false);
     return '${dt.year}-${_two(dt.month)}-${_two(dt.day)} ${_two(dt.hour)}:${_two(dt.minute)}';
   }
 
   String _two(int n) => n.toString().padLeft(2, '0');
 
   Widget _leadingThumb(WpFileItem item) {
-    if (item.isImage) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          item.url,
-          width: 56,
-          height: 56,
-          fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => _placeholderIcon(item),
-        ),
-      );
+    if (!item.isImage) {
+      return _placeholderIcon(item);
     }
-    return _placeholderIcon(item);
+
+    final imageUrl = (item.thumbUrl != null && item.thumbUrl!.isNotEmpty) ? item.thumbUrl! : item.url;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: _FadeInThumb(imageUrl: imageUrl, placeholder: _placeholderIcon(item)),
+    );
   }
 
   Widget _placeholderIcon(WpFileItem item) {
     final mime = (item.mime ?? '').toLowerCase();
-    final isPdf =
-        mime == 'application/pdf' || item.name.toLowerCase().endsWith('.pdf');
+    final isPdf = mime == 'application/pdf' || item.name.toLowerCase().endsWith('.pdf');
     return Container(
       width: 56,
       height: 56,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: Colors.black12,
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), color: Colors.black12),
       child: Icon(isPdf ? Icons.picture_as_pdf : Icons.insert_drive_file),
     );
   }
@@ -110,10 +98,7 @@ class _UploadsPageState extends State<UploadsPage> {
             const SizedBox(height: 6),
             const Text('Remote URL:'),
             const SizedBox(height: 4),
-            SelectableText(
-              item.url,
-              style: const TextStyle(fontFamily: 'monospace'),
-            ),
+            SelectableText(item.url, style: const TextStyle(fontFamily: 'monospace')),
           ],
         ),
         actions: [
@@ -142,17 +127,11 @@ class _UploadsPageState extends State<UploadsPage> {
         title: const Text('Delete file'),
         content: Text('Do you want to delete “${item.name}” from the server?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
           ElevatedButton.icon(
             onPressed: () => Navigator.of(ctx).pop(true),
             icon: const Icon(Icons.delete),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             label: const Text('Delete'),
           ),
         ],
@@ -167,20 +146,14 @@ class _UploadsPageState extends State<UploadsPage> {
       if (!mounted) return;
 
       if (res['ok'] == true) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Deleted: ${item.name}')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted: ${item.name}')));
         await _reload(); // ricarica la lista dal server
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed (HTTP ${res['status']})')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed (HTTP ${res['status']})')));
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Delete error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete error: $e')));
     } finally {
       if (mounted) setState(() => _deleting = false);
     }
@@ -205,10 +178,7 @@ class _UploadsPageState extends State<UploadsPage> {
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
-                        child: Text(
-                          'Error: ${snap.error}',
-                          textAlign: TextAlign.center,
-                        ),
+                        child: Text('Error: ${snap.error}', textAlign: TextAlign.center),
                       ),
                     ),
                   ],
@@ -223,10 +193,7 @@ class _UploadsPageState extends State<UploadsPage> {
                   children: const [
                     SizedBox(height: 120),
                     Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text('No files found.'),
-                      ),
+                      child: Padding(padding: EdgeInsets.all(24), child: Text('No files found.')),
                     ),
                   ],
                 );
@@ -245,12 +212,8 @@ class _UploadsPageState extends State<UploadsPage> {
                   ].whereType<String>().join(' • ');
 
                   return ListTile(
-                    leading: _leadingThumb(item),
-                    title: Text(
-                      item.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    leading: SizedBox(width: 56, height: 56, child: _leadingThumb(item)),
+                    title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                     subtitle: subtitle.isEmpty ? null : Text(subtitle),
                     // TAP → dettaglio (modal)
                     onTap: () => _showDetails(item),
@@ -281,6 +244,57 @@ class _UploadsPageState extends State<UploadsPage> {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _FadeInThumb extends StatefulWidget {
+  final String imageUrl;
+  final Widget placeholder;
+
+  const _FadeInThumb({required this.imageUrl, required this.placeholder});
+
+  @override
+  State<_FadeInThumb> createState() => _FadeInThumbState();
+}
+
+class _FadeInThumbState extends State<_FadeInThumb> {
+  bool _loaded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Placeholder sempre visibile sotto
+        widget.placeholder,
+        // Immagine che fa fade-in quando finisce il caricamento
+        AnimatedOpacity(
+          opacity: _loaded ? 1 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: Image.network(
+            widget.imageUrl,
+            fit: BoxFit.cover,
+            width: 56,
+            height: 56,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null && !_loaded) {
+                // caricata
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    setState(() => _loaded = true);
+                  }
+                });
+              }
+              return child;
+            },
+            errorBuilder: (context, error, stackTrace) {
+              // se l’immagine fallisce, lasciamo solo il placeholder
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
       ],
     );
   }

@@ -11,7 +11,10 @@ class WpFileItem {
   final String url;
   final int? size;
   final String? mime;
-  final int? modified; // epoch seconds, lato server
+  final int? modified;
+  final String? thumbUrl;
+  final int? thumbWidth;
+  final int? thumbHeight;
 
   WpFileItem({
     required this.name,
@@ -19,6 +22,9 @@ class WpFileItem {
     this.size,
     this.mime,
     this.modified,
+    this.thumbUrl,
+    this.thumbWidth,
+    this.thumbHeight,
   });
 
   bool get isImage => (mime ?? '').startsWith('image/');
@@ -27,9 +33,18 @@ class WpFileItem {
     return WpFileItem(
       name: (json['name'] ?? json['file'] ?? '') as String,
       url: (json['url'] ?? '') as String,
-      size: (json['size'] is int) ? json['size'] as int : null,
+      size: json['size'] is int ? json['size'] as int : (json['size'] is num ? (json['size'] as num).toInt() : null),
       mime: json['mime'] as String?,
-      modified: (json['modified'] is int) ? json['modified'] as int : null,
+      modified: json['modified'] is int
+          ? json['modified'] as int
+          : (json['modified'] is num ? (json['modified'] as num).toInt() : null),
+      thumbUrl: json['thumb_url'] as String?,
+      thumbWidth: json['thumb_width'] is int
+          ? json['thumb_width'] as int
+          : (json['thumb_width'] is num ? (json['thumb_width'] as num).toInt() : null),
+      thumbHeight: json['thumb_height'] is int
+          ? json['thumb_height'] as int
+          : (json['thumb_height'] is num ? (json['thumb_height'] as num).toInt() : null),
     );
   }
 }
@@ -43,18 +58,9 @@ class WpFilesResponse {
 
   factory WpFilesResponse.fromJson(Map<String, dynamic> json) {
     final ok = json['ok'] == true;
-    final rawItems = (json['items'] is List)
-        ? (json['items'] as List)
-        : <dynamic>[];
-    final items = rawItems
-        .whereType<Map<String, dynamic>>()
-        .map((e) => WpFileItem.fromJson(e))
-        .toList();
-    return WpFilesResponse(
-      ok: ok,
-      items: items,
-      total: (json['total'] is int) ? json['total'] as int : items.length,
-    );
+    final rawItems = (json['items'] is List) ? (json['items'] as List) : <dynamic>[];
+    final items = rawItems.whereType<Map<String, dynamic>>().map((e) => WpFileItem.fromJson(e)).toList();
+    return WpFilesResponse(ok: ok, items: items, total: (json['total'] is int) ? json['total'] as int : items.length);
   }
 }
 
@@ -67,10 +73,7 @@ class WpApi {
     if (baseUrl == null || baseUrl.isEmpty) {
       throw Exception('URL non configurato');
     }
-    if (username == null ||
-        username.isEmpty ||
-        password == null ||
-        password.isEmpty) {
+    if (username == null || username.isEmpty || password == null || password.isEmpty) {
       throw Exception('Credenziali mancanti');
     }
 
@@ -82,8 +85,7 @@ class WpApi {
       throw Exception('HTTP ${res.statusCode}: ${res.body}');
     }
 
-    final Map<String, dynamic> json =
-        jsonDecode(res.body) as Map<String, dynamic>;
+    final Map<String, dynamic> json = jsonDecode(res.body) as Map<String, dynamic>;
     return WpFilesResponse.fromJson(json);
   }
 
@@ -99,10 +101,7 @@ class WpApi {
     if (baseUrl == null || baseUrl.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'URL non configurato'};
     }
-    if (username == null ||
-        username.isEmpty ||
-        password == null ||
-        password.isEmpty) {
+    if (username == null || username.isEmpty || password == null || password.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
     }
 
@@ -130,11 +129,8 @@ class WpApi {
         final obj = jsonDecode(body);
         if (obj is Map) {
           // copriamo vari casi comuni
-          remoteUrl =
-              (obj['url'] ?? obj['link'] ?? obj['source_url']) as String?;
-          if (remoteUrl == null &&
-              obj['guid'] is Map &&
-              obj['guid']['rendered'] is String) {
+          remoteUrl = (obj['url'] ?? obj['link'] ?? obj['source_url']) as String?;
+          if (remoteUrl == null && obj['guid'] is Map && obj['guid']['rendered'] is String) {
             remoteUrl = obj['guid']['rendered'] as String;
           }
           if (remoteUrl == null && obj['guid'] is String) {
@@ -150,12 +146,7 @@ class WpApi {
         if (match != null) remoteUrl = match.group(0);
       }
 
-      return {
-        'ok': ok,
-        'status': res.statusCode,
-        'body': body,
-        'remoteUrl': remoteUrl,
-      };
+      return {'ok': ok, 'status': res.statusCode, 'body': body, 'remoteUrl': remoteUrl};
     } on SocketException catch (e) {
       return {'ok': false, 'status': 0, 'body': 'Errore di rete: $e'};
     } catch (e) {
@@ -163,21 +154,14 @@ class WpApi {
     }
   }
 
-  static Future<Map<String, dynamic>> uploadBytes(
-    Uint8List bytes,
-    String filename, {
-    String? mime,
-  }) async {
+  static Future<Map<String, dynamic>> uploadBytes(Uint8List bytes, String filename, {String? mime}) async {
     final baseUrl = await AppStorage.getUrl();
     final username = await AppStorage.getUsername();
     final password = await AppStorage.getPassword();
     if (baseUrl == null || baseUrl.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'URL non configurato'};
     }
-    if (username == null ||
-        username.isEmpty ||
-        password == null ||
-        password.isEmpty) {
+    if (username == null || username.isEmpty || password == null || password.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
     }
 
@@ -188,9 +172,7 @@ class WpApi {
     final auth = base64Encode(utf8.encode('$username:$password'));
     req.headers['Authorization'] = 'Basic $auth';
 
-    final mediaType = (mime != null && mime.contains('/'))
-        ? MediaType(mime.split('/')[0], mime.split('/')[1])
-        : null;
+    final mediaType = (mime != null && mime.contains('/')) ? MediaType(mime.split('/')[0], mime.split('/')[1]) : null;
 
     req.files.add(
       http.MultipartFile.fromBytes(
@@ -211,15 +193,13 @@ class WpApi {
       try {
         final obj = jsonDecode(body);
         if (obj is Map) {
-          remoteUrl =
-              (obj['url'] ?? obj['link'] ?? obj['source_url']) as String?;
-          if (remoteUrl == null &&
-              obj['guid'] is Map &&
-              obj['guid']['rendered'] is String) {
+          remoteUrl = (obj['url'] ?? obj['link'] ?? obj['source_url']) as String?;
+          if (remoteUrl == null && obj['guid'] is Map && obj['guid']['rendered'] is String) {
             remoteUrl = obj['guid']['rendered'] as String;
           }
-          if (remoteUrl == null && obj['guid'] is String)
+          if (remoteUrl == null && obj['guid'] is String) {
             remoteUrl = obj['guid'] as String;
+          }
         } else if (obj is String) {
           remoteUrl = obj;
         }
@@ -228,12 +208,7 @@ class WpApi {
         if (m != null) remoteUrl = m.group(0);
       }
 
-      return {
-        'ok': ok,
-        'status': res.statusCode,
-        'body': body,
-        'remoteUrl': remoteUrl,
-      };
+      return {'ok': ok, 'status': res.statusCode, 'body': body, 'remoteUrl': remoteUrl};
     } catch (e) {
       return {'ok': false, 'status': 0, 'body': 'Errore: $e'};
     }
@@ -247,10 +222,7 @@ class WpApi {
     if (baseUrl == null || baseUrl.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'URL non configurato'};
     }
-    if (username == null ||
-        username.isEmpty ||
-        password == null ||
-        password.isEmpty) {
+    if (username == null || username.isEmpty || password == null || password.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
     }
 
@@ -258,10 +230,7 @@ class WpApi {
     final uri = Uri.parse('$baseUrl/wp-json/fileuploader/v1/files/$encoded');
     final auth = base64Encode(utf8.encode('$username:$password'));
 
-    final res = await http.delete(
-      uri,
-      headers: {'Authorization': 'Basic $auth'},
-    );
+    final res = await http.delete(uri, headers: {'Authorization': 'Basic $auth'});
 
     final ok = res.statusCode >= 200 && res.statusCode < 300;
     return {'ok': ok, 'status': res.statusCode, 'body': res.body};

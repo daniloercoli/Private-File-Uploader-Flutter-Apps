@@ -151,8 +151,9 @@ class _AppScaffoldState extends State<AppScaffold> {
                               FutureBuilder<PackageInfo>(
                                 future: PackageInfo.fromPlatform(),
                                 builder: (context, snap) {
-                                  if (!snap.hasData)
+                                  if (!snap.hasData) {
                                     return const SizedBox.shrink();
+                                  }
                                   final info = snap.data!;
                                   final ver =
                                       '${info.version}+${info.buildNumber}';
