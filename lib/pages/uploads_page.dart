@@ -120,7 +120,7 @@ class _UploadsPageState extends State<UploadsPage> {
     );
   }
 
-  Future<void> _confirmAndDelete(WpFileItem item) async {
+  Future<bool> _confirmAndDelete(WpFileItem item) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -138,22 +138,25 @@ class _UploadsPageState extends State<UploadsPage> {
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true) return false;
 
     setState(() => _deleting = true);
     try {
       final res = await WpApi.deleteFile(item.name);
-      if (!mounted) return;
+      if (!mounted) return false;
 
       if (res['ok'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted: ${item.name}')));
         await _reload(); // ricarica la lista dal server
+        return true;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed (HTTP ${res['status']})')));
+        return false;
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete error: $e')));
+      return false;
     } finally {
       if (mounted) setState(() => _deleting = false);
     }
@@ -211,18 +214,38 @@ class _UploadsPageState extends State<UploadsPage> {
                     if (size.isNotEmpty) size,
                   ].whereType<String>().join(' • ');
 
-                  return ListTile(
-                    leading: SizedBox(width: 56, height: 56, child: _leadingThumb(item)),
-                    title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: subtitle.isEmpty ? null : Text(subtitle),
-                    // TAP → dettaglio (modal)
-                    onTap: () => _showDetails(item),
-                    // LONG PRESS → conferma cancellazione
-                    onLongPress: () => _confirmAndDelete(item),
-                    trailing: IconButton(
-                      tooltip: 'Copy URL',
-                      icon: const Icon(Icons.copy),
-                      onPressed: () => _copyUrl(item.url),
+                  return Dismissible(
+                    key: ValueKey(item.name), // o ValueKey(item.url) se preferisci
+                    direction: DismissDirection.startToEnd, // swipe da sinistra verso destra
+                    background: Container(
+                      color: Colors.red,
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: const Icon(Icons.delete, color: Colors.white),
+                    ),
+                    confirmDismiss: (direction) async {
+                      if (direction == DismissDirection.startToEnd) {
+                        // usa la stessa logica del long-press
+                        final deleted = await _confirmAndDelete(item);
+                        // ritorniamo false perché la lista viene ricaricata da _reload(),
+                        // non vogliamo che Dismissible rimuova localmente un item "stale".
+                        return false;
+                      }
+                      return false;
+                    },
+                    child: ListTile(
+                      leading: SizedBox(width: 56, height: 56, child: _leadingThumb(item)),
+                      title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: subtitle.isEmpty ? null : Text(subtitle),
+                      // TAP → dettaglio (modal)
+                      onTap: () => _showDetails(item),
+                      // LONG PRESS → conferma cancellazione (resta come fallback)
+                      onLongPress: () => _confirmAndDelete(item),
+                      trailing: IconButton(
+                        tooltip: 'Copy URL',
+                        icon: const Icon(Icons.copy),
+                        onPressed: () => _copyUrl(item.url),
+                      ),
                     ),
                   );
                 },
