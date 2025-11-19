@@ -183,14 +183,14 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Impostazioni WordPress', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+                const Text('Credenziali del Cloud', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 16),
 
                 // URL
                 TextFormField(
                   controller: _urlCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'URL del sito (es. http://localhost:8888/wp1)',
+                    labelText: 'URL del sito (es. https://filesuploader.ercoliconsulting.eu/)',
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.url,

@@ -223,7 +223,7 @@ class _HomePageState extends State<HomePage> {
             const Icon(Icons.cloud_upload, size: 80),
             const SizedBox(height: 16),
             const Text(
-              'Carica nuovi file su WordPress',
+              'Carica nuovi file sul tuo Cloud',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
             ),

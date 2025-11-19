@@ -120,5 +120,5 @@ flutter_launcher_icons:
   image_path: assets/app_icon.png
 
   # Android adaptive (usa il foreground trasparente)
-  adaptive_icon_background: "#FFC400"         # oppure un png: background_image:
+  adaptive_icon_background: "#FFFFFF"         # oppure un png: background_image:
   adaptive_icon_foreground: assets/app_icon_foreground.png
