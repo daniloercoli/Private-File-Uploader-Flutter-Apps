@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/app_storage.dart';
+import '../services/wp_api.dart'; // 👈 aggiunto
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -16,6 +17,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   bool _loading = true;
   bool _saving = false;
+  bool _testing = false; // 👈 nuovo stato per test connessione
 
   @override
   void initState() {
@@ -47,14 +49,10 @@ class _SettingsPageState extends State<SettingsPage> {
       await AppStorage.setPassword(_passCtrl.text);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Impostazioni salvate')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impostazioni salvate')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Errore salvataggio: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore salvataggio: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -69,16 +67,93 @@ class _SettingsPageState extends State<SettingsPage> {
       _passCtrl.clear();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Impostazioni ripristinate')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impostazioni ripristinate')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Errore reset: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore reset: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _onTestConnection() async {
+    // Usiamo la stessa validazione del form (URL, user, pass non vuoti e URL valido)
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Correggi i campi evidenziati prima di testare')));
+      return;
+    }
+
+    final url = _urlCtrl.text.trim();
+    final user = _userCtrl.text.trim();
+    final pass = _passCtrl.text;
+
+    setState(() => _testing = true);
+
+    // Modale di "test in corso"
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const AlertDialog(
+        title: Text('Test connessione'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(height: 8),
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Verifica in corso…', textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+
+    final res = await WpApi.ping(baseUrl: url, username: user, password: pass);
+
+    if (!mounted) return;
+    Navigator.of(context).pop(); // chiude la modale di loading
+    setState(() => _testing = false);
+
+    final ok = res['ok'] == true;
+    final status = res['status'];
+    final body = (res['body'] ?? '').toString();
+
+    if (ok) {
+      // dialog di successo + chiedi se vuole salvare
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Connessione riuscita'),
+          content: Text(
+            'Ping eseguito con successo (HTTP $status).\n\n'
+            'Vuoi salvare queste impostazioni?',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('No')),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                await _onSave();
+              },
+              child: const Text('Salva'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // dialog di errore
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Connessione fallita'),
+          content: Text(
+            'Impossibile contattare il server.\n\n'
+            'HTTP $status\n$body',
+          ),
+          actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi'))],
+        ),
+      );
     }
   }
 
@@ -96,6 +171,8 @@ class _SettingsPageState extends State<SettingsPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final isBusy = _saving || _testing;
+
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
@@ -106,10 +183,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Impostazioni WordPress',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                ),
+                const Text('Impostazioni WordPress', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 16),
 
                 // URL
@@ -135,25 +209,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 // USERNAME
                 TextFormField(
                   controller: _userCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Username',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Inserisci lo username' : null,
+                  decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder()),
+                  validator: (v) => (v == null || v.isEmpty) ? 'Inserisci lo username' : null,
                 ),
                 const SizedBox(height: 12),
 
                 // PASSWORD (secure)
                 TextFormField(
                   controller: _passCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
                   obscureText: true,
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Inserisci la password' : null,
+                  validator: (v) => (v == null || v.isEmpty) ? 'Inserisci la password' : null,
                 ),
                 const SizedBox(height: 20),
 
@@ -161,20 +227,27 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: _saving ? null : _onSave,
+                        onPressed: isBusy ? null : _onSave,
                         icon: const Icon(Icons.save),
-                        label: _saving
-                            ? const Text('Salvataggio…')
-                            : const Text('Salva'),
+                        label: _saving ? const Text('Salvataggio…') : const Text('Salva'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     OutlinedButton.icon(
-                      onPressed: _saving ? null : _onReset,
+                      onPressed: isBusy ? null : _onReset,
                       icon: const Icon(Icons.restore),
                       label: const Text('Reset'),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isBusy ? null : _onTestConnection,
+                    icon: const Icon(Icons.wifi_tethering),
+                    label: _testing ? const Text('Test in corso…') : const Text('Test connection'),
+                  ),
                 ),
               ],
             ),

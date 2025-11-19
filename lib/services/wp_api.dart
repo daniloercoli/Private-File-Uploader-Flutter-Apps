@@ -235,4 +235,39 @@ class WpApi {
     final ok = res.statusCode >= 200 && res.statusCode < 300;
     return {'ok': ok, 'status': res.statusCode, 'body': res.body};
   }
+
+  static Future<Map<String, dynamic>> ping({String? baseUrl, String? username, String? password}) async {
+    // se non vengono passati, usa quelli salvati
+    final url = baseUrl ?? await AppStorage.getUrl();
+    final user = username ?? await AppStorage.getUsername();
+    final pass = password ?? await AppStorage.getPassword();
+
+    if (url == null || url.isEmpty) {
+      return {'ok': false, 'status': 0, 'body': 'Site URL non configurato'};
+    }
+    if (user == null || user.isEmpty || pass == null || pass.isEmpty) {
+      return {'ok': false, 'status': 0, 'body': 'Credenziali non complete'};
+    }
+
+    Uri uri;
+    try {
+      // normalizza un minimo: niente slash finale multiplo
+      final normalized = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+      uri = Uri.parse('$normalized/wp-json/fileuploader/v1/ping');
+    } catch (e) {
+      return {'ok': false, 'status': 0, 'body': 'URL non valido: $e'};
+    }
+
+    final auth = base64Encode(utf8.encode('$user:$pass'));
+
+    try {
+      final res = await http.get(uri, headers: {'Authorization': 'Basic $auth'}).timeout(const Duration(seconds: 10));
+
+      final ok = res.statusCode >= 200 && res.statusCode < 300;
+
+      return {'ok': ok, 'status': res.statusCode, 'body': res.body};
+    } catch (e) {
+      return {'ok': false, 'status': 0, 'body': 'Errore di connessione: $e'};
+    }
+  }
 }
