@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/wp_api.dart';
 import '../services/app_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,12 +19,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   bool _uploading = false;
   String? _lastResult; // messaggi di errore/diagnostica
-  String? _lastFilePath; // ultimo file locale (Android/iOS) per retry
-
-  // Per Web (retry senza riselezionare)
-  Uint8List? _lastBytes;
-  String? _lastName;
-  String? _lastMime;
+  http.Client? _currentClient;
+  String? _currentFileName;
 
   Future<void> _pickAndUpload() async {
     setState(() => _lastResult = null);
@@ -50,10 +47,7 @@ class _HomePageState extends State<HomePage> {
       }
       final header = bytes.length >= 12 ? bytes.sublist(0, 12) : bytes;
       final mime = lookupMimeType(name, headerBytes: header) ?? 'application/octet-stream';
-      // memorizza per retry
-      _lastBytes = bytes;
-      _lastName = name;
-      _lastMime = mime;
+      _currentFileName = name;
       await _uploadFromBytes(bytes, name, mime: mime);
     } else {
       // ANDROID / iOS: usa il path su filesystem
@@ -63,9 +57,15 @@ class _HomePageState extends State<HomePage> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selezione file non valida')));
         return;
       }
-      _lastFilePath = path; // per retry
+      _currentFileName = path.split('/').last;
       await _uploadFromPath(path);
     }
+  }
+
+  void _cancelUpload() {
+    // Chiudendo il client, interrompiamo la richiesta HTTP in corso
+    _currentClient?.close();
+    // Non metto setState qui: lo stato viene sistemato nei finally dei metodi di upload.
   }
 
   Future<void> _uploadFromBytes(Uint8List bytes, String filename, {String? mime}) async {
@@ -74,9 +74,18 @@ class _HomePageState extends State<HomePage> {
       _lastResult = null;
     });
 
-    try {
-      final res = await WpApi.uploadBytes(bytes, filename, mime: mime);
+    _currentClient = http.Client();
 
+    try {
+      final res = await WpApi.uploadBytes(bytes, filename, mime: mime, client: _currentClient);
+      if (res['cancelled'] == true) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload annullato')));
+        setState(() {
+          _lastResult = null;
+        });
+        return;
+      }
       if (res['ok'] == true && res['remoteUrl'] is String && (res['remoteUrl'] as String).isNotEmpty) {
         final remoteUrl = res['remoteUrl'] as String;
 
@@ -114,23 +123,13 @@ class _HomePageState extends State<HomePage> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Upload fallito'),
-            content: Text('Errore: HTTP $status\n\nVuoi riprovare ad inviare lo stesso file?'),
-            actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi')),
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.of(ctx).pop();
-                  if (_lastBytes != null && _lastName != null) {
-                    await _uploadFromBytes(_lastBytes!, _lastName!, mime: _lastMime);
-                  }
-                },
-                child: const Text('Riprova'),
-              ),
-            ],
+            content: Text('Errore: HTTP $status\n\n$body'),
+            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi'))],
           ),
         );
       }
     } finally {
+      _currentClient = null;
       if (mounted) setState(() => _uploading = false);
     }
   }
@@ -149,10 +148,18 @@ class _HomePageState extends State<HomePage> {
       _uploading = true;
       _lastResult = null;
     });
+    _currentClient = http.Client();
 
     try {
-      final res = await WpApi.uploadFile(path);
-
+      final res = await WpApi.uploadFile(path, client: _currentClient);
+      if (res['cancelled'] == true) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload annullato')));
+        setState(() {
+          _lastResult = null;
+        });
+        return;
+      }
       if (res['ok'] == true && res['remoteUrl'] is String && (res['remoteUrl'] as String).isNotEmpty) {
         final remoteUrl = res['remoteUrl'] as String;
 
@@ -181,7 +188,6 @@ class _HomePageState extends State<HomePage> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload riuscito')));
         setState(() => _lastResult = null);
       } else {
-        // Fallimento: offri "Riprova" senza riselezione
         final status = res['status'];
         final body = (res['body'] ?? '').toString();
         setState(() => _lastResult = 'HTTP $status — $body');
@@ -191,23 +197,13 @@ class _HomePageState extends State<HomePage> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Upload fallito'),
-            content: Text('Errore: HTTP $status\n\nVuoi riprovare ad inviare lo stesso file?'),
-            actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi')),
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.of(ctx).pop();
-                  if (_lastFilePath != null) {
-                    await _uploadFromPath(_lastFilePath!); // retry immediato
-                  }
-                },
-                child: const Text('Riprova'),
-              ),
-            ],
+            content: Text('Errore: HTTP $status\n\n$body'),
+            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi'))],
           ),
         );
       }
     } finally {
+      _currentClient = null;
       if (mounted) setState(() => _uploading = false);
     }
   }
@@ -234,21 +230,24 @@ class _HomePageState extends State<HomePage> {
               label: Text(_uploading ? 'Caricamento…' : 'Carica file'),
             ),
             const SizedBox(height: 8),
-            // Pulsante Riprova rapido (funziona sia path che web bytes)
-            if (!_uploading &&
-                _lastResult != null &&
-                (_lastFilePath != null || (_lastBytes != null && _lastName != null)))
-              OutlinedButton.icon(
-                onPressed: () {
-                  if (_lastFilePath != null) {
-                    _uploadFromPath(_lastFilePath!);
-                  } else if (_lastBytes != null && _lastName != null) {
-                    _uploadFromBytes(_lastBytes!, _lastName!, mime: _lastMime);
-                  }
-                },
-                icon: const Icon(Icons.refresh),
-                label: const Text('Riprova ultimo file'),
+            // Barra di stato upload + pulsante annulla
+            if (_uploading && _currentFileName != null) ...[
+              const SizedBox(height: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Caricamento in corso: $_currentFileName', textAlign: TextAlign.center),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: _cancelUpload,
+                    icon: const Icon(Icons.stop),
+                    label: const Text('Annulla upload'),
+                  ),
+                ],
               ),
+            ],
             if (_lastResult != null) ...[
               const SizedBox(height: 16),
               SelectableText(_lastResult!, textAlign: TextAlign.center),

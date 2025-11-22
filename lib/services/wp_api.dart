@@ -93,7 +93,7 @@ class WpApi {
   /// {baseUrl}/wp-json/fileuploader/v1/upload
   ///
   /// Salva la URL del server in storage
-  static Future<Map<String, dynamic>> uploadFile(String filePath) async {
+  static Future<Map<String, dynamic>> uploadFile(String filePath, {http.Client? client}) async {
     final baseUrl = await AppStorage.getUrl();
     final username = await AppStorage.getUsername();
     final password = await AppStorage.getPassword();
@@ -108,15 +108,17 @@ class WpApi {
     final uri = Uri.parse('$baseUrl/wp-json/fileuploader/v1/upload');
     final req = http.MultipartRequest('POST', uri);
 
+    final c = client ?? http.Client();
+
     // Basic Auth
     final auth = base64Encode(utf8.encode('$username:$password'));
     req.headers['Authorization'] = 'Basic $auth';
 
-    // Se vuoi: deduci mime; se non vuoi complicare, puoi omettere contentType.
+    // Possiamo omettere contentType per adesso.
     req.files.add(await http.MultipartFile.fromPath('file', filePath));
 
     try {
-      final streamed = await req.send();
+      final streamed = await c.send(req);
       final res = await http.Response.fromStream(streamed);
 
       final ok = res.statusCode >= 200 && res.statusCode < 300;
@@ -147,14 +149,29 @@ class WpApi {
       }
 
       return {'ok': ok, 'status': res.statusCode, 'body': body, 'remoteUrl': remoteUrl};
+    } on http.ClientException catch (e) {
+      // Se abbiamo ricevuto un client esterno è quasi sicuramente una cancellazione
+      if (client != null) {
+        return {'ok': false, 'cancelled': true, 'status': 0, 'body': 'Upload cancellato: $e'};
+      }
+      return {'ok': false, 'status': 0, 'body': 'Errore client HTTP: $e'};
     } on SocketException catch (e) {
       return {'ok': false, 'status': 0, 'body': 'Errore di rete: $e'};
     } catch (e) {
       return {'ok': false, 'status': 0, 'body': 'Errore: $e'};
+    } finally {
+      if (client == null) {
+        c.close();
+      }
     }
   }
 
-  static Future<Map<String, dynamic>> uploadBytes(Uint8List bytes, String filename, {String? mime}) async {
+  static Future<Map<String, dynamic>> uploadBytes(
+    Uint8List bytes,
+    String filename, {
+    String? mime,
+    http.Client? client,
+  }) async {
     final baseUrl = await AppStorage.getUrl();
     final username = await AppStorage.getUsername();
     final password = await AppStorage.getPassword();
@@ -166,6 +183,7 @@ class WpApi {
     }
 
     final uri = Uri.parse('$baseUrl/wp-json/fileuploader/v1/upload');
+    final c = client ?? http.Client();
     final req = http.MultipartRequest('POST', uri);
 
     // Basic Auth
@@ -184,7 +202,7 @@ class WpApi {
     );
 
     try {
-      final streamed = await req.send();
+      final streamed = await c.send(req);
       final res = await http.Response.fromStream(streamed);
       final ok = res.statusCode >= 200 && res.statusCode < 300;
 
@@ -209,8 +227,17 @@ class WpApi {
       }
 
       return {'ok': ok, 'status': res.statusCode, 'body': body, 'remoteUrl': remoteUrl};
+    } on http.ClientException catch (e) {
+      if (client != null) {
+        return {'ok': false, 'cancelled': true, 'status': 0, 'body': 'Upload cancellato: $e'};
+      }
+      return {'ok': false, 'status': 0, 'body': 'Errore client HTTP: $e'};
     } catch (e) {
       return {'ok': false, 'status': 0, 'body': 'Errore: $e'};
+    } finally {
+      if (client == null) {
+        c.close();
+      }
     }
   }
 

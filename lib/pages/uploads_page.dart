@@ -239,8 +239,8 @@ class _UploadsPageState extends State<UploadsPage> {
                       subtitle: subtitle.isEmpty ? null : Text(subtitle),
                       // TAP → dettaglio (modal)
                       onTap: () => _showDetails(item),
-                      // LONG PRESS → conferma cancellazione (resta come fallback)
-                      onLongPress: () => _confirmAndDelete(item),
+                      // LONG PRESS → dettaglio
+                      onLongPress: () => _showDetails(item),
                       trailing: IconButton(
                         tooltip: 'Copy URL',
                         icon: const Icon(Icons.copy),
