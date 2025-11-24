@@ -119,7 +119,7 @@ class _SettingsPageState extends State<SettingsPage> {
           builder: (ctx) => AlertDialog(
             title: const Text('Connessione fallita'),
             content: Text(
-              'Impossibile contattare il server.\n\n'
+              'Errore nel contattare il server.\n\n'
               'HTTP $status\n$bodyShort',
             ),
             actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi'))],
