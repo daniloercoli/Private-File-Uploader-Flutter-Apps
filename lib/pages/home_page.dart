@@ -8,6 +8,7 @@ import '../services/wp_api.dart';
 import '../services/app_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import '../utils/ui_utils.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -189,15 +190,14 @@ class _HomePageState extends State<HomePage> {
         setState(() => _lastResult = null);
       } else {
         final status = res['status'];
-        final body = (res['body'] ?? '').toString();
-        setState(() => _lastResult = 'HTTP $status — $body');
-
+        final bodyShort = shortError(res['body']);
+        setState(() => _lastResult = 'HTTP $status — $bodyShort');
         if (!mounted) return;
         await showDialog<void>(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Upload fallito'),
-            content: Text('Errore: HTTP $status\n\n$body'),
+            content: Text('Errore: HTTP $status\n\n$bodyShort'),
             actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi'))],
           ),
         );

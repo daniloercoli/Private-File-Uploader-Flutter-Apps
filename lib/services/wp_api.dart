@@ -297,4 +297,47 @@ class WpApi {
       return {'ok': false, 'status': 0, 'body': 'Errore di connessione: $e'};
     }
   }
+
+  static Future<Map<String, dynamic>> renameFile(String oldName, String newName) async {
+    final baseUrl = await AppStorage.getUrl();
+    final username = await AppStorage.getUsername();
+    final password = await AppStorage.getPassword();
+
+    if (baseUrl == null || baseUrl.isEmpty) {
+      return {'ok': false, 'status': 0, 'body': 'URL non configurato'};
+    }
+    if (username == null || username.isEmpty || password == null || password.isEmpty) {
+      return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
+    }
+
+    // Es: /wp-json/fileuploader/v1/files/{filename}/rename
+    final normalized = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final encodedOld = Uri.encodeComponent(oldName);
+    final uri = Uri.parse('$normalized/wp-json/fileuploader/v1/files/$encodedOld/rename');
+
+    final auth = base64Encode(utf8.encode('$username:$password'));
+
+    try {
+      final res = await http
+          .post(
+            uri,
+            headers: {'Authorization': 'Basic $auth', 'Content-Type': 'application/json'},
+            body: jsonEncode({'new_name': newName}),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final ok = res.statusCode >= 200 && res.statusCode < 300;
+
+      dynamic body;
+      try {
+        body = jsonDecode(res.body);
+      } catch (_) {
+        body = res.body;
+      }
+
+      return {'ok': ok, 'status': res.statusCode, 'body': body};
+    } catch (e) {
+      return {'ok': false, 'status': 0, 'body': 'Errore di connessione: $e'};
+    }
+  }
 }

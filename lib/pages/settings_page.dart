@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/app_storage.dart';
-import '../services/wp_api.dart'; // 👈 aggiunto
+import '../services/wp_api.dart';
+import '../utils/ui_utils.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -143,13 +144,14 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     } else {
       // dialog di errore
+      final bodyShort = shortError(body);
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Connessione fallita'),
           content: Text(
             'Impossibile contattare il server.\n\n'
-            'HTTP $status\n$body',
+            'HTTP $status\n$bodyShort',
           ),
           actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi'))],
         ),

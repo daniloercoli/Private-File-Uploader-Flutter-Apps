@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/wp_api.dart';
+import '../utils/ui_utils.dart';
 
 class UploadsPage extends StatefulWidget {
   const UploadsPage({super.key});
@@ -115,9 +116,95 @@ class _UploadsPageState extends State<UploadsPage> {
             icon: const Icon(Icons.copy),
             label: const Text('Copy URL'),
           ),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop(); // chiudi dialog di dettaglio
+              _promptRename(item); // e apri dialog di rename
+            },
+            icon: const Icon(Icons.drive_file_rename_outline),
+            label: const Text('Rename'),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _promptRename(WpFileItem item) async {
+    final controller = TextEditingController(text: item.name);
+    String? error;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Rename file'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    decoration: InputDecoration(labelText: 'New name', errorText: error),
+                    autofocus: true,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                ElevatedButton(
+                  onPressed: () {
+                    final value = controller.text.trim();
+                    if (value.isEmpty) {
+                      setStateDialog(() {
+                        error = 'Insert a valid filename';
+                      });
+                      return;
+                    }
+                    if (value == item.name) {
+                      setStateDialog(() {
+                        error = 'Name is unchanged';
+                      });
+                      return;
+                    }
+                    Navigator.of(ctx).pop(true);
+                  },
+                  child: const Text('Rename'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    final newName = controller.text.trim();
+    await _renameFile(item, newName);
+  }
+
+  Future<void> _renameFile(WpFileItem item, String newName) async {
+    setState(() => _deleting = true); // Riuso la overlay sottile come quella usata in delete / "busy"
+    try {
+      final res = await WpApi.renameFile(item.name, newName);
+      if (!mounted) return;
+
+      if (res['ok'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Renamed to $newName')));
+        await _reload(); // Ricarichiamo la lista dal server per sicurezza
+      } else {
+        final status = res['status'] ?? '-';
+        final bodyShort = shortError(res['body']);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Rename failed (HTTP $status): $bodyShort')));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final bodyShort = shortError(e);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Rename error: $bodyShort)')));
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
   }
 
   Future<bool> _confirmAndDelete(WpFileItem item) async {
@@ -155,7 +242,8 @@ class _UploadsPageState extends State<UploadsPage> {
       }
     } catch (e) {
       if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete error: $e')));
+      final bodyShort = shortError(e);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete error: $bodyShort')));
       return false;
     } finally {
       if (mounted) setState(() => _deleting = false);
