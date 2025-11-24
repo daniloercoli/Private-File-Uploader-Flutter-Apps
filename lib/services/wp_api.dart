@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'app_storage.dart';
 import 'dart:typed_data';
+import '../utils/ui_utils.dart';
 
 // ---- Modello semplice per un file ----
 class WpFileItem {
@@ -263,38 +264,47 @@ class WpApi {
     return {'ok': ok, 'status': res.statusCode, 'body': res.body};
   }
 
-  static Future<Map<String, dynamic>> ping({String? baseUrl, String? username, String? password}) async {
-    // se non vengono passati, usa quelli salvati
-    final url = baseUrl ?? await AppStorage.getUrl();
-    final user = username ?? await AppStorage.getUsername();
-    final pass = password ?? await AppStorage.getPassword();
+  static Future<Map<String, dynamic>> ping() async {
+    final baseUrl = await AppStorage.getUrl() ?? '';
+    final username = await AppStorage.getUsername() ?? '';
+    final password = await AppStorage.getPassword() ?? '';
 
-    if (url == null || url.isEmpty) {
-      return {'ok': false, 'status': 0, 'body': 'Site URL non configurato'};
-    }
-    if (user == null || user.isEmpty || pass == null || pass.isEmpty) {
-      return {'ok': false, 'status': 0, 'body': 'Credenziali non complete'};
-    }
+    return pingWithConfig(baseUrl: baseUrl, username: username, password: password);
+  }
 
-    Uri uri;
-    try {
-      // normalizza un minimo: niente slash finale multiplo
-      final normalized = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
-      uri = Uri.parse('$normalized/wp-json/fileuploader/v1/ping');
-    } catch (e) {
-      return {'ok': false, 'status': 0, 'body': 'URL non valido: $e'};
+  static Future<Map<String, dynamic>> pingWithConfig({
+    required String baseUrl,
+    required String username,
+    required String password,
+  }) async {
+    if (baseUrl.isEmpty) {
+      return {'ok': false, 'status': 0, 'body': 'URL non configurato'};
+    }
+    if (username.isEmpty || password.isEmpty) {
+      return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
     }
 
-    final auth = base64Encode(utf8.encode('$user:$pass'));
+    final normalized = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final uri = Uri.parse('$normalized/wp-json/fileuploader/v1/ping');
+
+    final auth = base64Encode(utf8.encode('$username:$password'));
 
     try {
       final res = await http.get(uri, headers: {'Authorization': 'Basic $auth'}).timeout(const Duration(seconds: 10));
 
       final ok = res.statusCode >= 200 && res.statusCode < 300;
 
-      return {'ok': ok, 'status': res.statusCode, 'body': res.body};
+      dynamic body;
+      try {
+        body = jsonDecode(res.body);
+      } catch (_) {
+        body = res.body;
+      }
+
+      return {'ok': ok, 'status': res.statusCode, 'body': body};
     } catch (e) {
-      return {'ok': false, 'status': 0, 'body': 'Errore di connessione: $e'};
+      final bodyShort = shortError(e, maxChars: 500);
+      return {'ok': false, 'status': 0, 'body': 'Errore di connessione: $bodyShort'};
     }
   }
 

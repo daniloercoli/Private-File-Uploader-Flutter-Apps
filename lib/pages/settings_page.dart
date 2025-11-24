@@ -78,84 +78,67 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _onTestConnection() async {
-    // Usiamo la stessa validazione del form (URL, user, pass non vuoti e URL valido)
-    if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Correggi i campi evidenziati prima di testare')));
-      return;
-    }
+    // Prima di tutto: validiamo i campi del form
+    if (!_formKey.currentState!.validate()) return;
 
     final url = _urlCtrl.text.trim();
     final user = _userCtrl.text.trim();
     final pass = _passCtrl.text;
 
-    setState(() => _testing = true);
+    setState(() => _saving = true);
+    try {
+      final res = await WpApi.pingWithConfig(baseUrl: url, username: user, password: pass);
 
-    // Modale di "test in corso"
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const AlertDialog(
-        title: Text('Test connessione'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(height: 8),
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Verifica in corso…', textAlign: TextAlign.center),
-          ],
-        ),
-      ),
-    );
+      if (!mounted) return;
 
-    final res = await WpApi.ping(baseUrl: url, username: user, password: pass);
-
-    if (!mounted) return;
-    Navigator.of(context).pop(); // chiude la modale di loading
-    setState(() => _testing = false);
-
-    final ok = res['ok'] == true;
-    final status = res['status'];
-    final body = (res['body'] ?? '').toString();
-
-    if (ok) {
-      // dialog di successo + chiedi se vuole salvare
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Connessione riuscita'),
-          content: Text(
-            'Ping eseguito con successo (HTTP $status).\n\n'
-            'Vuoi salvare queste impostazioni?',
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('No')),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                await _onSave();
-              },
-              child: const Text('Salva'),
+      if (res['ok'] == true) {
+        // Connessione OK → chiediamo se vuole anche salvare i dati
+        final shouldSave = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Connessione riuscita'),
+            content: const Text(
+              'La connessione al server è andata a buon fine.\n\n'
+              'Vuoi salvare queste impostazioni?',
             ),
-          ],
-        ),
-      );
-    } else {
-      // dialog di errore
-      final bodyShort = shortError(body);
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
+              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Sì, salva')),
+            ],
+          ),
+        );
+
+        if (shouldSave == true) {
+          await _onSave(); // riusiamo la logica di salvataggio esistente
+        }
+      } else {
+        final status = res['status'] ?? '-';
+        final bodyShort = shortError(res['body']);
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Connessione fallita'),
+            content: Text(
+              'Impossibile contattare il server.\n\n'
+              'HTTP $status\n$bodyShort',
+            ),
+            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi'))],
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final bodyShort = shortError(e);
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Connessione fallita'),
-          content: Text(
-            'Impossibile contattare il server.\n\n'
-            'HTTP $status\n$bodyShort',
-          ),
+          title: const Text('Errore'),
+          content: Text('Errore durante il test di connessione:\n\n$bodyShort'),
           actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi'))],
         ),
       );
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
