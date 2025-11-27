@@ -4,10 +4,13 @@ import 'package:mime/mime.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../services/wp_api.dart';
-import '../services/app_storage.dart';
+import 'package:archive/archive_io.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+
+import '../services/wp_api.dart';
+import '../services/app_storage.dart';
 import '../utils/ui_utils.dart';
 
 class HomePage extends StatefulWidget {
@@ -27,39 +30,126 @@ class _HomePageState extends State<HomePage> {
     setState(() => _lastResult = null);
 
     final result = await FilePicker.platform.pickFiles(
-      allowMultiple: false,
-      withData: kIsWeb, // su Web chiedi i byte
+      // Web: solo singolo file
+      // Mobile: multi selezione
+      allowMultiple: !kIsWeb,
+      withData: kIsWeb, // su web ci servono i bytes
     );
     if (result == null || result.files.isEmpty) return;
 
-    final picked = result.files.single;
+    final files = result.files;
 
+    // WEB: solo singolo file, niente ZIP
     if (kIsWeb) {
-      // WEB: invia i byte
+      final picked = files.single;
       final bytes = picked.bytes;
       final name = picked.name;
 
       if (bytes == null) {
-        // fallback: niente byte disponibili (capita se withData:false o alcuni browser)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Selezione non valida (nessun contenuto). Riprova.')));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selezione non valida')));
         return;
       }
       final header = bytes.length >= 12 ? bytes.sublist(0, 12) : bytes;
       final mime = lookupMimeType(name, headerBytes: header) ?? 'application/octet-stream';
-      _currentFileName = name;
+
       await _uploadFromBytes(bytes, name, mime: mime);
-    } else {
-      // ANDROID / iOS: usa il path su filesystem
+      return;
+    }
+
+    // MOBILE:
+
+    // Caso 1: singolo file → comportamento normale
+    if (files.length == 1) {
+      final picked = files.single;
       final path = picked.path;
       if (path == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selezione file non valida')));
         return;
       }
-      _currentFileName = path.split('/').last;
       await _uploadFromPath(path);
+      return;
+    }
+
+    // Caso 2: più file → ZIP su disco + upload
+    await _confirmAndUploadZipMobile(files);
+  }
+
+  Future<void> _confirmAndUploadZipMobile(List<PlatformFile> files) async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Invia come ZIP'),
+        content: Text(
+          'Hai selezionato ${files.length} file.\n\n'
+          'Verranno inviati come un unico archivio ZIP al server.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annulla')),
+          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('OK')),
+        ],
+      ),
+    );
+
+    if (proceed != true) return;
+
+    String? zipPath;
+
+    try {
+      setState(() => _uploading = true);
+
+      // 1) Creiamo un path temporaneo per lo ZIP
+      final tempDir = await getTemporaryDirectory();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      zipPath = '${tempDir.path}/upload_$ts.zip';
+
+      final encoder = ZipFileEncoder();
+      encoder.create(zipPath);
+
+      // 2) Aggiungiamo i file uno alla volta allo ZIP (su disco)
+      for (final f in files) {
+        final path = f.path;
+        if (path == null) continue;
+
+        final file = File(path);
+        if (!await file.exists()) continue;
+
+        // Questo metodo legge e scrive mano a mano nello zip, non
+        // tiene tutto l'archivio in memoria come Uint8List.
+        encoder.addFile(file);
+      }
+
+      encoder.close();
+
+      // Controllo rapido: lo ZIP esiste e non è vuoto
+      final zipFile = File(zipPath);
+      if (!await zipFile.exists() || await zipFile.length() == 0) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Errore nella creazione dello ZIP')));
+        return;
+      }
+
+      // 3) Upload usando lo stesso flusso del singolo file
+      await _uploadFromPath(zipPath);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = shortError(e);
+      setState(() => _lastResult = 'Errore creazione ZIP: $msg');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore creazione ZIP: $msg')));
+    } finally {
+      // 4) Pulizia: cancella lo ZIP temporaneo
+      if (zipPath != null) {
+        try {
+          final f = File(zipPath);
+          if (await f.exists()) {
+            await f.delete();
+          }
+        } catch (_) {
+          // se fallisce la delete non è un dramma
+        }
+      }
+      if (mounted) setState(() => _uploading = false);
     }
   }
 
