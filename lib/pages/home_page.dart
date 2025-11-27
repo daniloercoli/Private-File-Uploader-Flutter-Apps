@@ -8,6 +8,7 @@ import 'package:archive/archive_io.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'dart:isolate';
 
 import '../services/wp_api.dart';
 import '../services/app_storage.dart';
@@ -47,11 +48,14 @@ class _HomePageState extends State<HomePage> {
 
       if (bytes == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selezione non valida')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Selezione non valida (nessun contenuto). Riprova.')));
         return;
       }
       final header = bytes.length >= 12 ? bytes.sublist(0, 12) : bytes;
       final mime = lookupMimeType(name, headerBytes: header) ?? 'application/octet-stream';
+      _currentFileName = name;
 
       await _uploadFromBytes(bytes, name, mime: mime);
       return;
@@ -68,6 +72,7 @@ class _HomePageState extends State<HomePage> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selezione file non valida')));
         return;
       }
+      _currentFileName = path.split('/').last;
       await _uploadFromPath(path);
       return;
     }
@@ -97,40 +102,44 @@ class _HomePageState extends State<HomePage> {
     String? zipPath;
 
     try {
-      setState(() => _uploading = true);
-
       // 1) Creiamo un path temporaneo per lo ZIP
       final tempDir = await getTemporaryDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
       zipPath = '${tempDir.path}/upload_$ts.zip';
 
-      final encoder = ZipFileEncoder();
-      encoder.create(zipPath);
+      _currentFileName = zipPath.split('/').last;
+      // 1) Attiva subito lo stato di upload (qui si apre
+      //   la modale di "upload in corso" / overlay con il pulsante Stop).
+      setState(() => _uploading = true);
 
-      // 2) Aggiungiamo i file uno alla volta allo ZIP (su disco)
+      // 2) Diamo tempo a Flutter di ridisegnare la UI e mostrare la modale
+      //    prima di iniziare il lavoro pesante di creazione ZIP.
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // 3) Lista di path validi dei file selezionati
+      final filePaths = <String>[];
       for (final f in files) {
         final path = f.path;
         if (path == null) continue;
-
-        final file = File(path);
-        if (!await file.exists()) continue;
-
-        // Questo metodo legge e scrive mano a mano nello zip, non
-        // tiene tutto l'archivio in memoria come Uint8List.
-        encoder.addFile(file);
+        filePaths.add(path);
       }
 
-      encoder.close();
+      if (filePaths.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nessun file valido selezionato')));
+        return;
+      }
 
-      // Controllo rapido: lo ZIP esiste e non è vuoto
-      final zipFile = File(zipPath);
-      if (!await zipFile.exists() || await zipFile.length() == 0) {
+      // 4) Creazione ZIP in un isolate separato
+      final createdZipPath = await createZipInIsolate(zipPath: zipPath, filePaths: filePaths);
+
+      if (createdZipPath == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Errore nella creazione dello ZIP')));
         return;
       }
 
-      // 3) Upload usando lo stesso flusso del singolo file
+      // 5) Upload usando lo stesso flusso del singolo file
       await _uploadFromPath(zipPath);
     } catch (e) {
       if (!mounted) return;
@@ -138,7 +147,7 @@ class _HomePageState extends State<HomePage> {
       setState(() => _lastResult = 'Errore creazione ZIP: $msg');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore creazione ZIP: $msg')));
     } finally {
-      // 4) Pulizia: cancella lo ZIP temporaneo
+      // Pulizia: cancella lo ZIP temporaneo
       if (zipPath != null) {
         try {
           final f = File(zipPath);
@@ -347,4 +356,31 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+}
+
+Future<String?> createZipInIsolate({required String zipPath, required List<String> filePaths}) async {
+  // Isolate.run esegue il body in un isolate separato
+  return Isolate.run<String?>(() {
+    try {
+      final encoder = ZipFileEncoder();
+      encoder.create(zipPath);
+
+      for (final path in filePaths) {
+        final file = File(path);
+        if (!file.existsSync()) continue;
+        encoder.addFile(file); // I/O sincrono ma in background isolate
+      }
+
+      encoder.close();
+
+      final zipFile = File(zipPath);
+      if (!zipFile.existsSync() || zipFile.lengthSync() == 0) {
+        return null;
+      }
+
+      return zipPath;
+    } catch (_) {
+      return null;
+    }
+  });
 }
