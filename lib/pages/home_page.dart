@@ -158,7 +158,12 @@ class _HomePageState extends State<HomePage> {
           // se fallisce la delete non è un dramma
         }
       }
-      if (mounted) setState(() => _uploading = false);
+      if (mounted) {
+        setState(() {
+          _uploading = false;
+          _currentFileName = null;
+        });
+      }
     }
   }
 
@@ -230,7 +235,12 @@ class _HomePageState extends State<HomePage> {
       }
     } finally {
       _currentClient = null;
-      if (mounted) setState(() => _uploading = false);
+      if (mounted) {
+        setState(() {
+          _uploading = false;
+          _currentFileName = null;
+        });
+      }
     }
   }
 
@@ -303,7 +313,12 @@ class _HomePageState extends State<HomePage> {
       }
     } finally {
       _currentClient = null;
-      if (mounted) setState(() => _uploading = false);
+      if (mounted) {
+        setState(() {
+          _uploading = false;
+          _currentFileName = null;
+        });
+      }
     }
   }
 
