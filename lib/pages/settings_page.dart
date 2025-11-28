@@ -18,7 +18,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   bool _loading = true;
   bool _saving = false;
-  bool _testing = false; // 👈 nuovo stato per test connessione
+  bool _testing = false;
 
   @override
   void initState() {
@@ -85,7 +85,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final user = _userCtrl.text.trim();
     final pass = _passCtrl.text;
 
-    setState(() => _saving = true);
+    setState(() => _testing = true);
     try {
       final res = await WpApi.pingWithConfig(baseUrl: url, username: user, password: pass);
 
@@ -138,7 +138,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) setState(() => _testing = false);
     }
   }
 
