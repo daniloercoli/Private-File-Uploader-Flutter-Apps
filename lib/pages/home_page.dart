@@ -207,6 +207,9 @@ class _HomePageState extends State<HomePage> {
 
         await AppStorage.addUploadedUrl(remoteUrl);
         await Clipboard.setData(ClipboardData(text: remoteUrl));
+        // aggiorna la cache della lista file in background
+        // (non aspettiamo il risultato, così non blocchiamo la UI)
+        WpApi.fetchFiles(forceRefresh: true);
 
         if (!mounted) return;
         final wantEmail = await showDialog<bool>(
@@ -295,6 +298,9 @@ class _HomePageState extends State<HomePage> {
 
         await AppStorage.addUploadedUrl(remoteUrl);
         await Clipboard.setData(ClipboardData(text: remoteUrl));
+        // aggiorna la cache della lista file in background
+        // (non aspettiamo il risultato, così non blocchiamo la UI)
+        WpApi.fetchFiles(forceRefresh: true);
 
         if (!mounted) return;
         final wantEmail = await showDialog<bool>(

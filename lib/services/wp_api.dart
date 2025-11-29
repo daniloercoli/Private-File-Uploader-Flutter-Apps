@@ -67,7 +67,21 @@ class WpFilesResponse {
 }
 
 class WpApi {
-  static Future<WpFilesResponse> fetchFiles() async {
+  // --- CACHE IN MEMORIA PER /files ---
+  static WpFilesResponse? _cachedFiles;
+  static DateTime? _cachedAt;
+  static String? _cachedBaseUrl;
+  static String? _cachedUsername;
+
+  // metodo per azzerare la cache
+  static void clearFilesCache() {
+    _cachedFiles = null;
+    _cachedAt = null;
+    _cachedBaseUrl = null;
+    _cachedUsername = null;
+  }
+
+  static Future<WpFilesResponse> fetchFiles({bool forceRefresh = false}) async {
     final baseUrl = await AppStorage.getUrl();
     final username = await AppStorage.getUsername();
     final password = await AppStorage.getPassword();
@@ -79,6 +93,17 @@ class WpApi {
       throw Exception('Credenziali mancanti');
     }
 
+    // --- TENTATIVO DI USO CACHE ---
+    const ttl = Duration(seconds: 60);
+    final now = DateTime.now();
+
+    final sameConfig = _cachedBaseUrl == baseUrl && _cachedUsername == username;
+    final freshEnough = _cachedAt != null && now.difference(_cachedAt!) < ttl;
+
+    if (!forceRefresh && _cachedFiles != null && sameConfig && freshEnough) {
+      return _cachedFiles!;
+    }
+
     final uri = Uri.parse('$baseUrl/wp-json/fileuploader/v1/files');
     final auth = base64Encode(utf8.encode('$username:$password'));
     final res = await http.get(uri, headers: {'Authorization': 'Basic $auth'});
@@ -88,7 +113,15 @@ class WpApi {
     }
 
     final Map<String, dynamic> json = jsonDecode(res.body) as Map<String, dynamic>;
-    return WpFilesResponse.fromJson(json);
+    final parsed = WpFilesResponse.fromJson(json);
+
+    // aggiorniamo la cache
+    _cachedFiles = parsed;
+    _cachedAt = now;
+    _cachedBaseUrl = baseUrl;
+    _cachedUsername = username;
+
+    return parsed;
   }
 
   /// Esegue l'upload del file come multipart su:

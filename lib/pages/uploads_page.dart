@@ -22,7 +22,7 @@ class _UploadsPageState extends State<UploadsPage> {
     _reload();
   }
 
-  Future<void> _reload() async {
+  Future<void> _reload({bool forceRefresh = false}) async {
     final url = await AppStorage.getUrl();
     final user = await AppStorage.getUsername();
     final pass = await AppStorage.getPassword();
@@ -41,7 +41,7 @@ class _UploadsPageState extends State<UploadsPage> {
 
     setState(() {
       _missingConfig = false;
-      _future = WpApi.fetchFiles();
+      _future = WpApi.fetchFiles(forceRefresh: forceRefresh);
     });
 
     await _future;
@@ -212,7 +212,7 @@ class _UploadsPageState extends State<UploadsPage> {
 
       if (res['ok'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Renamed to $newName')));
-        await _reload(); // Ricarichiamo la lista dal server per sicurezza
+        await _reload(forceRefresh: true); // Ricarichiamo la lista dal server per sicurezza
       } else {
         final status = res['status'] ?? '-';
         final bodyShort = shortError(res['body']);
@@ -254,7 +254,7 @@ class _UploadsPageState extends State<UploadsPage> {
 
       if (res['ok'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted: ${item.name}')));
-        await _reload(); // ricarica la lista dal server
+        await _reload(forceRefresh: true); // ricarica la lista dal server
         return true;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed (HTTP ${res['status']})')));
@@ -275,7 +275,7 @@ class _UploadsPageState extends State<UploadsPage> {
     return Stack(
       children: [
         RefreshIndicator(
-          onRefresh: _reload,
+          onRefresh: () => _reload(forceRefresh: true),
           child: _missingConfig
               // Nessuna configurazione: messaggio amichevole
               ? ListView(

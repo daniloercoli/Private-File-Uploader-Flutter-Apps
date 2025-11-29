@@ -63,6 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _saving = true);
     try {
       await AppStorage.resetAll();
+      WpApi.clearFilesCache();
       _urlCtrl.clear();
       _userCtrl.clear();
       _passCtrl.clear();
