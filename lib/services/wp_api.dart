@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'app_storage.dart';
-import 'dart:typed_data';
 import '../utils/ui_utils.dart';
 
 // ---- Modello semplice per un file ----
@@ -94,7 +95,11 @@ class WpApi {
   /// {baseUrl}/wp-json/fileuploader/v1/upload
   ///
   /// Salva la URL del server in storage
-  static Future<Map<String, dynamic>> uploadFile(String filePath, {http.Client? client}) async {
+  static Future<Map<String, dynamic>> uploadFile(
+    String filePath, {
+    http.Client? client,
+    void Function(double progress)? onProgress,
+  }) async {
     final baseUrl = await AppStorage.getUrl();
     final username = await AppStorage.getUsername();
     final password = await AppStorage.getPassword();
@@ -115,8 +120,28 @@ class WpApi {
     final auth = base64Encode(utf8.encode('$username:$password'));
     req.headers['Authorization'] = 'Basic $auth';
 
-    // Possiamo omettere contentType per adesso.
-    req.files.add(await http.MultipartFile.fromPath('file', filePath));
+    // Prepara il file con tracking del progresso
+    final file = File(filePath);
+    final length = await file.length();
+
+    // stream del file
+    Stream<List<int>> stream = file.openRead();
+
+    // wrappiamo lo stream per notificare il progresso
+    stream = _trackUploadProgress(stream, length, onProgress);
+
+    final byteStream = http.ByteStream(stream);
+    final filename = filePath.split(Platform.pathSeparator).last;
+
+    final multipartFile = http.MultipartFile(
+      'file',
+      byteStream,
+      length,
+      filename: filename,
+      // contentType possiamo ancora ometterlo
+    );
+
+    req.files.add(multipartFile);
 
     try {
       final streamed = await c.send(req);
@@ -172,6 +197,7 @@ class WpApi {
     String filename, {
     String? mime,
     http.Client? client,
+    void Function(double progress)? onProgress,
   }) async {
     final baseUrl = await AppStorage.getUrl();
     final username = await AppStorage.getUsername();
@@ -191,12 +217,23 @@ class WpApi {
     final auth = base64Encode(utf8.encode('$username:$password'));
     req.headers['Authorization'] = 'Basic $auth';
 
+    final total = bytes.length;
+
+    // stream dai bytes
+    Stream<List<int>> stream = Stream<List<int>>.fromIterable([bytes]);
+
+    // wrappiamo per il progresso (se onProgress != null)
+    stream = _trackUploadProgress(stream, total, onProgress);
+
+    final byteStream = http.ByteStream(stream);
+
     final mediaType = (mime != null && mime.contains('/')) ? MediaType(mime.split('/')[0], mime.split('/')[1]) : null;
 
     req.files.add(
-      http.MultipartFile.fromBytes(
+      http.MultipartFile(
         'file', // campo come da cURL
-        bytes,
+        byteStream,
+        total,
         filename: filename,
         contentType: mediaType,
       ),
@@ -349,5 +386,29 @@ class WpApi {
     } catch (e) {
       return {'ok': false, 'status': 0, 'body': 'Errore di connessione: $e'};
     }
+  }
+
+  static Stream<List<int>> _trackUploadProgress(
+    Stream<List<int>> stream,
+    int totalBytes,
+    void Function(double progress)? onProgress,
+  ) {
+    if (onProgress == null || totalBytes <= 0) return stream;
+
+    var sent = 0;
+    return stream.transform(
+      StreamTransformer.fromHandlers(
+        handleData: (chunk, sink) {
+          sent += chunk.length;
+          final p = sent / totalBytes;
+          onProgress(p.clamp(0.0, 1.0));
+          sink.add(chunk);
+        },
+        handleDone: (sink) {
+          onProgress(1.0);
+          sink.close();
+        },
+      ),
+    );
   }
 }

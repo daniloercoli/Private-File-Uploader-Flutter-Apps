@@ -26,6 +26,7 @@ class _HomePageState extends State<HomePage> {
   String? _lastResult; // messaggi di errore/diagnostica
   http.Client? _currentClient;
   String? _currentFileName;
+  double? _uploadProgress; // 0.0–1.0, null = “indeterminata”
 
   Future<void> _pickAndUpload() async {
     setState(() => _lastResult = null);
@@ -176,13 +177,23 @@ class _HomePageState extends State<HomePage> {
   Future<void> _uploadFromBytes(Uint8List bytes, String filename, {String? mime}) async {
     setState(() {
       _uploading = true;
+      _uploadProgress = 0.0;
       _lastResult = null;
     });
 
     _currentClient = http.Client();
 
     try {
-      final res = await WpApi.uploadBytes(bytes, filename, mime: mime, client: _currentClient);
+      final res = await WpApi.uploadBytes(
+        bytes,
+        filename,
+        mime: mime,
+        client: _currentClient,
+        onProgress: (p) {
+          if (!mounted) return;
+          setState(() => _uploadProgress = p);
+        },
+      );
       if (res['cancelled'] == true) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload annullato')));
@@ -238,6 +249,7 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         setState(() {
           _uploading = false;
+          _uploadProgress = null;
           _currentFileName = null;
         });
       }
@@ -256,12 +268,20 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {
       _uploading = true;
+      _uploadProgress = 0.0;
       _lastResult = null;
     });
     _currentClient = http.Client();
 
     try {
-      final res = await WpApi.uploadFile(path, client: _currentClient);
+      final res = await WpApi.uploadFile(
+        path,
+        client: _currentClient,
+        onProgress: (p) {
+          if (!mounted) return;
+          setState(() => _uploadProgress = p);
+        },
+      );
       if (res['cancelled'] == true) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload annullato')));
@@ -316,6 +336,7 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         setState(() {
           _uploading = false;
+          _uploadProgress = null;
           _currentFileName = null;
         });
       }
@@ -352,7 +373,9 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   Text('Caricamento in corso: $_currentFileName', textAlign: TextAlign.center),
                   const SizedBox(height: 8),
-                  LinearProgressIndicator(),
+                  LinearProgressIndicator(
+                    value: _uploadProgress, // null = indeterminata, 0..1 = determinata
+                  ),
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: _cancelUpload,
