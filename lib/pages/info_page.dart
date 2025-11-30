@@ -66,9 +66,7 @@ class InfoPage extends StatelessWidget {
     final text = await _buildDiagnosticsString();
     await Clipboard.setData(ClipboardData(text: text));
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Diagnostica copiata negli appunti')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Diagnostica copiata negli appunti')));
     }
   }
 
@@ -91,31 +89,31 @@ class InfoPage extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.info_outline, size: 72),
+              SizedBox(
+                width: 72,
+                height: 72,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset('assets/app_icon.png', fit: BoxFit.cover),
+                ),
+              ),
               const SizedBox(height: 12),
               FutureBuilder<PackageInfo>(
                 future: PackageInfo.fromPlatform(),
                 builder: (context, snap) {
                   final appName = snap.data?.appName ?? 'WP Uploader';
-                  final ver = snap.hasData
-                      ? '${snap.data!.version}+${snap.data!.buildNumber}'
-                      : '';
+                  final ver = snap.hasData ? '${snap.data!.version}+${snap.data!.buildNumber}' : '';
                   return Column(
                     children: [
-                      Text(
-                        appName,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (ver.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text('Versione $ver'),
-                      ],
+                      Text(appName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
+                      if (ver.isNotEmpty) ...[const SizedBox(height: 8), Text('Versione $ver')],
                       const SizedBox(height: 24),
                       const Text(
-                        'App per caricare e condividere Files. Necessità di una componente server, che al momento è disponibile solamente come plugin per WordPress.',
+                        'File Uploader ti permette di caricare in modo semplice e sicuro i tuoi file '
+                        'direttamente su WordPress, usando il plugin “Private File Uploader”.\n\n'
+                        'I file vengono salvati in una cartella dedicata al tuo utente: puoi copiarne '
+                        'subito il link, rinominare o eliminare gli elementi, vedere anteprime di immagini '
+                        'e aprire video con le app di sistema, senza passare da servizi cloud esterni.',
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
@@ -124,9 +122,7 @@ class InfoPage extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: snap.hasData
-                              ? () => _openLicenses(context, snap.data!)
-                              : null,
+                          onPressed: snap.hasData ? () => _openLicenses(context, snap.data!) : null,
                           icon: const Icon(Icons.article_outlined),
                           label: const Text('Licenze / About'),
                         ),
