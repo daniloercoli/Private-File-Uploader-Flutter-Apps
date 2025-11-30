@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/wp_api.dart';
 import '../utils/ui_utils.dart';
 import '../services/app_storage.dart';
@@ -53,37 +54,74 @@ class _UploadsPageState extends State<UploadsPage> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('URL copiata negli appunti')));
   }
 
-  String _humanSize(int? bytes) {
-    if (bytes == null) return '';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    double v = bytes.toDouble();
-    int i = 0;
-    while (v >= 1024 && i < units.length - 1) {
-      v /= 1024;
-      i++;
+  bool _isVideo(WpFileItem item) {
+    final mime = (item.mime ?? '').toLowerCase();
+    if (mime.startsWith('video/')) return true;
+
+    final name = item.name.toLowerCase();
+    return name.endsWith('.mp4') ||
+        name.endsWith('.mov') ||
+        name.endsWith('.m4v') ||
+        name.endsWith('.webm') ||
+        name.endsWith('.avi') ||
+        name.endsWith('.mkv');
+  }
+
+  Future<void> _onThumbTap(WpFileItem item) async {
+    if (item.isImage) {
+      await _openFullScreenImage(item);
+    } else if (_isVideo(item)) {
+      await _openVideo(item);
     }
-    return '${v.toStringAsFixed(i == 0 ? 0 : 1)} ${units[i]}';
+    // altri tipi: non facciamo nulla
   }
 
-  String _humanDate(int? epochSeconds) {
-    if (epochSeconds == null) return '';
-    final dt = DateTime.fromMillisecondsSinceEpoch(epochSeconds * 1000, isUtc: false);
-    return '${dt.year}-${_two(dt.month)}-${_two(dt.day)} ${_two(dt.hour)}:${_two(dt.minute)}';
+  Future<void> _openVideo(WpFileItem item) async {
+    try {
+      final uri = Uri.parse(item.url);
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossibile aprire il video')));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossibile aprire il video')));
+    }
   }
 
-  String _two(int n) => n.toString().padLeft(2, '0');
+  Future<void> _openFullScreenImage(WpFileItem item) async {
+    final imageUrl = item.url; // per il fullscreen uso l’URL “pieno”
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => _ImageFullScreenPage(imageUrl: imageUrl, title: item.name),
+      ),
+    );
+  }
 
   Widget _leadingThumb(WpFileItem item) {
-    if (!item.isImage) {
-      return _placeholderIcon(item);
+    final isImage = item.isImage;
+    final isVideo = _isVideo(item);
+
+    // Costruisco la thumb “nuda”
+    Widget thumb;
+    if (isImage) {
+      final imageUrl = (item.thumbUrl != null && item.thumbUrl!.isNotEmpty) ? item.thumbUrl! : item.url;
+
+      thumb = ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: _FadeInThumb(imageUrl: imageUrl, placeholder: _placeholderIcon(item)),
+      );
+    } else {
+      thumb = _placeholderIcon(item);
     }
 
-    final imageUrl = (item.thumbUrl != null && item.thumbUrl!.isNotEmpty) ? item.thumbUrl! : item.url;
+    // Per immagini e video la thumb diventa tappabile
+    if (isImage || isVideo) {
+      return GestureDetector(onTap: () => _onThumbTap(item), child: thumb);
+    }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: _FadeInThumb(imageUrl: imageUrl, placeholder: _placeholderIcon(item)),
-    );
+    // Tutti gli altri file → nessuna azione sul tap della preview
+    return thumb;
   }
 
   Widget _placeholderIcon(WpFileItem item) {
@@ -111,9 +149,9 @@ class _UploadsPageState extends State<UploadsPage> {
             const SizedBox(height: 6),
             SelectableText('MIME: ${item.mime ?? '—'}'),
             const SizedBox(height: 6),
-            SelectableText('Size: ${_humanSize(item.size)}'),
+            SelectableText('Size: ${humanSize(item.size)}'),
             const SizedBox(height: 6),
-            SelectableText('Modified: ${_humanDate(item.modified)}'),
+            SelectableText('Modified: ${humanDate(item.modified)}'),
             const SizedBox(height: 12),
             const Divider(),
             const SizedBox(height: 6),
@@ -338,10 +376,10 @@ class _UploadsPageState extends State<UploadsPage> {
                           return ListView.separated(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             itemCount: items.length,
-                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            separatorBuilder: (_, _) => const Divider(height: 1),
                             itemBuilder: (context, index) {
                               final item = items[index];
-                              final size = _humanSize(item.size);
+                              final size = humanSize(item.size);
                               final subtitle = [
                                 if (item.mime != null && item.mime!.isNotEmpty) item.mime,
                                 if (size.isNotEmpty) size,
@@ -358,7 +396,8 @@ class _UploadsPageState extends State<UploadsPage> {
                                 ),
                                 confirmDismiss: (direction) async {
                                   if (direction == DismissDirection.startToEnd) {
-                                    final deleted = await _confirmAndDelete(item);
+                                    // final deleted =  Non ci serve qui
+                                    await _confirmAndDelete(item);
                                     // Non lasciamo a Dismissible il compito di togliere l’item,
                                     // ci pensa _reload() a riallineare la lista col server.
                                     return false;
@@ -449,6 +488,28 @@ class _FadeInThumbState extends State<_FadeInThumb> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ImageFullScreenPage extends StatelessWidget {
+  final String imageUrl;
+  final String title;
+
+  const _ImageFullScreenPage({required this.imageUrl, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+      body: Center(
+        child: InteractiveViewer(maxScale: 5.0, child: Image.network(imageUrl, fit: BoxFit.contain)),
+      ),
     );
   }
 }
