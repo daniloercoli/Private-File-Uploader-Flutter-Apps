@@ -67,25 +67,32 @@ class _UploadsPageState extends State<UploadsPage> {
         name.endsWith('.mkv');
   }
 
+  bool _isPDF(WpFileItem item) {
+    final mime = (item.mime ?? '').toLowerCase();
+
+    if (mime.startsWith('application/pdf')) return true;
+    return item.name.toLowerCase().endsWith('.pdf');
+  }
+
   Future<void> _onThumbTap(WpFileItem item) async {
     if (item.isImage) {
       await _openFullScreenImage(item);
-    } else if (_isVideo(item)) {
-      await _openVideo(item);
+    } else if (_isVideo(item) || _isPDF(item)) {
+      await _openFile(item);
     }
     // altri tipi: non facciamo nulla
   }
 
-  Future<void> _openVideo(WpFileItem item) async {
+  Future<void> _openFile(WpFileItem item) async {
     try {
       final uri = Uri.parse(item.url);
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossibile aprire il video')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossibile aprire il file')));
       }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossibile aprire il video')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossibile aprire il file')));
     }
   }
 
@@ -116,7 +123,7 @@ class _UploadsPageState extends State<UploadsPage> {
     }
 
     // Per immagini e video la thumb diventa tappabile
-    if (isImage || isVideo) {
+    if (isImage || isVideo || _isPDF(item)) {
       return GestureDetector(onTap: () => _onThumbTap(item), child: thumb);
     }
 
