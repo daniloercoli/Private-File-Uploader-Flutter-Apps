@@ -355,46 +355,121 @@ class _HomePageState extends State<HomePage> {
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Icon(Icons.cloud_upload, size: 80),
+            // --- SOLO CONTENUTO CENTRALE (CARD UPLOAD) ---
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_upload_outlined, size: 48),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Carica nuovi file sul tuo Cloud',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Seleziona uno o più file dal dispositivo.\n'
+                            'Verranno caricati in modo sicuro sul tuo server.',
+                            style: TextStyle(fontSize: 13, color: Colors.black54),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Pulsante principale
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _uploading ? null : _pickAndUpload,
+                              icon: const Icon(Icons.upload_file),
+                              label: Text(_uploading ? 'Caricamento…' : 'Carica file'),
+                            ),
+                          ),
+
+                          // Barra di stato upload + pulsante annulla
+                          if (_uploading && _currentFileName != null) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              'Caricamento in corso: $_currentFileName',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(
+                              value: _uploadProgress, // null = indeterminata, 0..1 = determinata
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: _cancelUpload,
+                                icon: const Icon(Icons.stop),
+                                label: const Text('Annulla upload'),
+                              ),
+                            ),
+                          ],
+
+                          // Messaggi diagnostici / errore
+                          if (_lastResult != null) ...[
+                            const SizedBox(height: 16),
+                            SelectableText(
+                              _lastResult!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
             const SizedBox(height: 16),
-            const Text(
-              'Carica nuovi file sul tuo Cloud',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _uploading ? null : _pickAndUpload,
-              icon: const Icon(Icons.upload_file),
-              label: Text(_uploading ? 'Caricamento…' : 'Carica file'),
-            ),
-            const SizedBox(height: 8),
-            // Barra di stato upload + pulsante annulla
-            if (_uploading && _currentFileName != null) ...[
-              const SizedBox(height: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+
+            // --- FOOTER: brand / autore ---
+            GestureDetector(
+              onTap: () async {
+                final uri = Uri.parse('https://www.ercoliconsulting.eu/');
+                final ok = await canLaunchUrl(uri);
+                if (!ok) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Nessuna app trovata per aprire il sito')));
+                  return;
+                }
+                final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                if (!launched && mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Impossibile aprire il sito')));
+                }
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Caricamento in corso: $_currentFileName', textAlign: TextAlign.center),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: _uploadProgress, // null = indeterminata, 0..1 = determinata
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.asset('assets/ercoli_consulting_logo.jpg', width: 32, height: 32, fit: BoxFit.contain),
                   ),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: _cancelUpload,
-                    icon: const Icon(Icons.stop),
-                    label: const Text('Annulla upload'),
-                  ),
+                  const SizedBox(height: 4),
+                  const Text('Ercoli Consulting', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
                 ],
               ),
-            ],
-            if (_lastResult != null) ...[
-              const SizedBox(height: 16),
-              SelectableText(_lastResult!, textAlign: TextAlign.center),
-            ],
+            ),
           ],
         ),
       ),
