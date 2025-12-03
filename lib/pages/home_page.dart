@@ -487,10 +487,10 @@ Future<String?> createZipInIsolate({required String zipPath, required List<Strin
       for (final path in filePaths) {
         final file = File(path);
         if (!file.existsSync()) continue;
-        encoder.addFile(file); // I/O sincrono ma in background isolate
+        encoder.addFileSync(file);
       }
 
-      encoder.close();
+      encoder.closeSync();
 
       final zipFile = File(zipPath);
       if (!zipFile.existsSync() || zipFile.lengthSync() == 0) {
