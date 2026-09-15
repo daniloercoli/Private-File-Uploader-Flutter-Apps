@@ -23,7 +23,7 @@ class InfoPage extends StatelessWidget {
       os = 'Android ${a.version.release} (SDK ${a.version.sdkInt})';
     } else if (Platform.isIOS) {
       final i = await di.iosInfo;
-      device = i.utsname.machine ?? 'iPhone/iPad';
+      device = i.utsname.machine;
       os = 'iOS ${i.systemVersion}';
     } else if (Platform.isMacOS) {
       final m = await di.macOsInfo;
@@ -31,7 +31,7 @@ class InfoPage extends StatelessWidget {
       os = 'macOS ${m.osRelease}';
     } else if (Platform.isLinux) {
       final l = await di.linuxInfo;
-      device = l.prettyName ?? 'Linux';
+      device = l.prettyName;
       os = 'Linux ${l.version ?? ''}'.trim();
     } else if (Platform.isWindows) {
       final w = await di.windowsInfo;
@@ -66,7 +66,9 @@ class InfoPage extends StatelessWidget {
     final text = await _buildDiagnosticsString();
     await Clipboard.setData(ClipboardData(text: text));
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Diagnostica copiata negli appunti')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Diagnostica copiata negli appunti')),
+      );
     }
   }
 
@@ -102,11 +104,22 @@ class InfoPage extends StatelessWidget {
                 future: PackageInfo.fromPlatform(),
                 builder: (context, snap) {
                   final appName = snap.data?.appName ?? 'WP Uploader';
-                  final ver = snap.hasData ? '${snap.data!.version}+${snap.data!.buildNumber}' : '';
+                  final ver = snap.hasData
+                      ? '${snap.data!.version}+${snap.data!.buildNumber}'
+                      : '';
                   return Column(
                     children: [
-                      Text(appName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
-                      if (ver.isNotEmpty) ...[const SizedBox(height: 8), Text('Versione $ver')],
+                      Text(
+                        appName,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (ver.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text('Versione $ver'),
+                      ],
                       const SizedBox(height: 24),
                       const Text(
                         'File Uploader ti permette di caricare in modo semplice e sicuro i tuoi file '
@@ -122,7 +135,9 @@ class InfoPage extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: snap.hasData ? () => _openLicenses(context, snap.data!) : null,
+                          onPressed: snap.hasData
+                              ? () => _openLicenses(context, snap.data!)
+                              : null,
                           icon: const Icon(Icons.article_outlined),
                           label: const Text('Licenze / About'),
                         ),

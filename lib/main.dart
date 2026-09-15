@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.blue,
           brightness: Brightness.light,
-        ).copyWith(background: Colors.white, surface: Colors.white),
+        ).copyWith(surface: Colors.white),
         scaffoldBackgroundColor: Colors.white,
       ),
       home: const AppScaffold(),
@@ -42,7 +42,12 @@ class _AppScaffoldState extends State<AppScaffold> {
   int _index = 0;
 
   bool _booting = true; // overlay di avvio
-  final List<Widget> _pages = const [HomePage(), UploadsPage(), SettingsPage(), InfoPage()];
+  final List<Widget> _pages = const [
+    HomePage(),
+    UploadsPage(),
+    SettingsPage(),
+    InfoPage(),
+  ];
 
   @override
   void initState() {
@@ -59,7 +64,10 @@ class _AppScaffoldState extends State<AppScaffold> {
       final url = await AppStorage.getUrl();
       final user = await AppStorage.getUsername();
       final pass = await AppStorage.getPassword();
-      final hasCreds = (url?.isNotEmpty ?? false) && (user?.isNotEmpty ?? false) && (pass?.isNotEmpty ?? false);
+      final hasCreds =
+          (url?.isNotEmpty ?? false) &&
+          (user?.isNotEmpty ?? false) &&
+          (pass?.isNotEmpty ?? false);
       if (!hasCreds) return;
 
       // timeout breve per non impegnare troppo (e ignoriamo errori)
@@ -123,7 +131,7 @@ class _AppScaffoldState extends State<AppScaffold> {
             if (_booting)
               Positioned.fill(
                 child: Container(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.08),
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 280),
@@ -140,7 +148,10 @@ class _AppScaffoldState extends State<AppScaffold> {
                               const SizedBox(height: 12),
                               const Text(
                                 'Private File Uploader',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 4),
@@ -151,10 +162,14 @@ class _AppScaffoldState extends State<AppScaffold> {
                                     return const SizedBox.shrink();
                                   }
                                   final info = snap.data!;
-                                  final ver = '${info.version}+${info.buildNumber}';
+                                  final ver =
+                                      '${info.version}+${info.buildNumber}';
                                   return Text(
                                     'v $ver',
-                                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                    ),
                                     textAlign: TextAlign.center,
                                   );
                                 },
@@ -164,13 +179,19 @@ class _AppScaffoldState extends State<AppScaffold> {
                               const SizedBox(height: 12),
                               const Text(
                                 'Preparing…',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 4),
                               const Text(
                                 'Just a moment',
-                                style: TextStyle(fontSize: 12, color: Colors.black54),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                             ],

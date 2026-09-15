@@ -30,7 +30,12 @@ class _UploadsPageState extends State<UploadsPage> {
 
     if (!mounted) return;
 
-    if (url == null || url.isEmpty || user == null || user.isEmpty || pass == null || pass.isEmpty) {
+    if (url == null ||
+        url.isEmpty ||
+        user == null ||
+        user.isEmpty ||
+        pass == null ||
+        pass.isEmpty) {
       // Nessuna configurazione: non facciamo chiamate di rete,
       // mostriamo solo un messaggio che invita ad andare in Settings.
       setState(() {
@@ -51,7 +56,9 @@ class _UploadsPageState extends State<UploadsPage> {
   Future<void> _copyUrl(String url) async {
     await Clipboard.setData(ClipboardData(text: url));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('URL copiata negli appunti')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('URL copiata negli appunti')));
   }
 
   bool _isVideo(WpFileItem item) {
@@ -88,11 +95,15 @@ class _UploadsPageState extends State<UploadsPage> {
       final uri = Uri.parse(item.url);
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossibile aprire il file')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossibile aprire il file')),
+        );
       }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossibile aprire il file')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossibile aprire il file')),
+      );
     }
   }
 
@@ -100,7 +111,8 @@ class _UploadsPageState extends State<UploadsPage> {
     final imageUrl = item.url; // per il fullscreen uso l’URL “pieno”
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (ctx) => _ImageFullScreenPage(imageUrl: imageUrl, title: item.name),
+        builder: (ctx) =>
+            _ImageFullScreenPage(imageUrl: imageUrl, title: item.name),
       ),
     );
   }
@@ -112,11 +124,16 @@ class _UploadsPageState extends State<UploadsPage> {
     // Costruisco la thumb “nuda”
     Widget thumb;
     if (isImage) {
-      final imageUrl = (item.thumbUrl != null && item.thumbUrl!.isNotEmpty) ? item.thumbUrl! : item.url;
+      final imageUrl = (item.thumbUrl != null && item.thumbUrl!.isNotEmpty)
+          ? item.thumbUrl!
+          : item.url;
 
       thumb = ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: _FadeInThumb(imageUrl: imageUrl, placeholder: _placeholderIcon(item)),
+        child: _FadeInThumb(
+          imageUrl: imageUrl,
+          placeholder: _placeholderIcon(item),
+        ),
       );
     } else {
       thumb = _placeholderIcon(item);
@@ -133,12 +150,16 @@ class _UploadsPageState extends State<UploadsPage> {
 
   Widget _placeholderIcon(WpFileItem item) {
     final mime = (item.mime ?? '').toLowerCase();
-    final isPdf = mime == 'application/pdf' || item.name.toLowerCase().endsWith('.pdf');
+    final isPdf =
+        mime == 'application/pdf' || item.name.toLowerCase().endsWith('.pdf');
     return Container(
       width: 56,
       height: 56,
       alignment: Alignment.center,
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), color: Colors.black12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.black12,
+      ),
       child: Icon(isPdf ? Icons.picture_as_pdf : Icons.insert_drive_file),
     );
   }
@@ -164,7 +185,10 @@ class _UploadsPageState extends State<UploadsPage> {
             const SizedBox(height: 6),
             const Text('Remote URL:'),
             const SizedBox(height: 4),
-            SelectableText(item.url, style: const TextStyle(fontFamily: 'monospace')),
+            SelectableText(
+              item.url,
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
           ],
         ),
         actions: [
@@ -210,13 +234,19 @@ class _UploadsPageState extends State<UploadsPage> {
                 children: [
                   TextField(
                     controller: controller,
-                    decoration: InputDecoration(labelText: 'New name', errorText: error),
+                    decoration: InputDecoration(
+                      labelText: 'New name',
+                      errorText: error,
+                    ),
                     autofocus: true,
                   ),
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel'),
+                ),
                 ElevatedButton(
                   onPressed: () {
                     final value = controller.text.trim();
@@ -250,23 +280,33 @@ class _UploadsPageState extends State<UploadsPage> {
   }
 
   Future<void> _renameFile(WpFileItem item, String newName) async {
-    setState(() => _deleting = true); // Riuso la overlay sottile come quella usata in delete / "busy"
+    setState(
+      () => _deleting = true,
+    ); // Riuso la overlay sottile come quella usata in delete / "busy"
     try {
       final res = await WpApi.renameFile(item.name, newName);
       if (!mounted) return;
 
       if (res['ok'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Renamed to $newName')));
-        await _reload(forceRefresh: true); // Ricarichiamo la lista dal server per sicurezza
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Renamed to $newName')));
+        await _reload(
+          forceRefresh: true,
+        ); // Ricarichiamo la lista dal server per sicurezza
       } else {
         final status = res['status'] ?? '-';
         final bodyShort = shortError(res['body']);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Rename failed (HTTP $status): $bodyShort')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rename failed (HTTP $status): $bodyShort')),
+        );
       }
     } catch (e) {
       if (!mounted) return;
       final bodyShort = shortError(e);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Rename error: $bodyShort')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Rename error: $bodyShort')));
     } finally {
       if (mounted) setState(() => _deleting = false);
     }
@@ -279,11 +319,17 @@ class _UploadsPageState extends State<UploadsPage> {
         title: const Text('Delete file'),
         content: Text('Do you want to delete “${item.name}” from the server?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton.icon(
             onPressed: () => Navigator.of(ctx).pop(true),
             icon: const Icon(Icons.delete),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             label: const Text('Delete'),
           ),
         ],
@@ -298,17 +344,23 @@ class _UploadsPageState extends State<UploadsPage> {
       if (!mounted) return false;
 
       if (res['ok'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted: ${item.name}')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Deleted: ${item.name}')));
         await _reload(forceRefresh: true); // ricarica la lista dal server
         return true;
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed (HTTP ${res['status']})')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed (HTTP ${res['status']})')),
+        );
         return false;
       }
     } catch (e) {
       if (!mounted) return false;
       final bodyShort = shortError(e);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete error: $bodyShort')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Delete error: $bodyShort')));
       return false;
     } finally {
       if (mounted) setState(() => _deleting = false);
@@ -346,7 +398,9 @@ class _UploadsPageState extends State<UploadsPage> {
                         future: _future!,
                         builder: (context, snap) {
                           if (snap.connectionState != ConnectionState.done) {
-                            return const Center(child: CircularProgressIndicator());
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
                           }
                           if (snap.hasError) {
                             final msg = shortError(snap.error);
@@ -374,7 +428,10 @@ class _UploadsPageState extends State<UploadsPage> {
                               children: const [
                                 SizedBox(height: 120),
                                 Center(
-                                  child: Padding(padding: EdgeInsets.all(24), child: Text('No files found.')),
+                                  child: Padding(
+                                    padding: EdgeInsets.all(24),
+                                    child: Text('No files found.'),
+                                  ),
                                 ),
                               ],
                             );
@@ -383,12 +440,14 @@ class _UploadsPageState extends State<UploadsPage> {
                           return ListView.separated(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             itemCount: items.length,
-                            separatorBuilder: (_, _) => const Divider(height: 1),
+                            separatorBuilder: (_, _) =>
+                                const Divider(height: 1),
                             itemBuilder: (context, index) {
                               final item = items[index];
                               final size = humanSize(item.size);
                               final subtitle = [
-                                if (item.mime != null && item.mime!.isNotEmpty) item.mime,
+                                if (item.mime != null && item.mime!.isNotEmpty)
+                                  item.mime,
                                 if (size.isNotEmpty) size,
                               ].whereType<String>().join(' • ');
 
@@ -398,11 +457,17 @@ class _UploadsPageState extends State<UploadsPage> {
                                 background: Container(
                                   color: Colors.red,
                                   alignment: Alignment.centerLeft,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                                  child: const Icon(Icons.delete, color: Colors.white),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete,
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 confirmDismiss: (direction) async {
-                                  if (direction == DismissDirection.startToEnd) {
+                                  if (direction ==
+                                      DismissDirection.startToEnd) {
                                     // final deleted =  Non ci serve qui
                                     await _confirmAndDelete(item);
                                     // Non lasciamo a Dismissible il compito di togliere l’item,
@@ -412,9 +477,19 @@ class _UploadsPageState extends State<UploadsPage> {
                                   return false;
                                 },
                                 child: ListTile(
-                                  leading: SizedBox(width: 56, height: 56, child: _leadingThumb(item)),
-                                  title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  subtitle: subtitle.isEmpty ? null : Text(subtitle),
+                                  leading: SizedBox(
+                                    width: 56,
+                                    height: 56,
+                                    child: _leadingThumb(item),
+                                  ),
+                                  title: Text(
+                                    item.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: subtitle.isEmpty
+                                      ? null
+                                      : Text(subtitle),
                                   onTap: () => _showDetails(item),
                                   onLongPress: () => _showDetails(item),
                                   trailing: IconButton(
@@ -436,7 +511,7 @@ class _UploadsPageState extends State<UploadsPage> {
             child: IgnorePointer(
               ignoring: true,
               child: Container(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 alignment: Alignment.topCenter,
                 padding: const EdgeInsets.only(top: 8),
                 child: const LinearProgressIndicator(minHeight: 2),
@@ -515,7 +590,10 @@ class _ImageFullScreenPage extends StatelessWidget {
         title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
       body: Center(
-        child: InteractiveViewer(maxScale: 5.0, child: Image.network(imageUrl, fit: BoxFit.contain)),
+        child: InteractiveViewer(
+          maxScale: 5.0,
+          child: Image.network(imageUrl, fit: BoxFit.contain),
+        ),
       ),
     );
   }

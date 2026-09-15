@@ -49,13 +49,17 @@ class _HomePageState extends State<HomePage> {
 
       if (bytes == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Selezione non valida (nessun contenuto). Riprova.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Selezione non valida (nessun contenuto). Riprova.'),
+          ),
+        );
         return;
       }
       final header = bytes.length >= 12 ? bytes.sublist(0, 12) : bytes;
-      final mime = lookupMimeType(name, headerBytes: header) ?? 'application/octet-stream';
+      final mime =
+          lookupMimeType(name, headerBytes: header) ??
+          'application/octet-stream';
       _currentFileName = name;
 
       await _uploadFromBytes(bytes, name, mime: mime);
@@ -70,7 +74,9 @@ class _HomePageState extends State<HomePage> {
       final path = picked.path;
       if (path == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selezione file non valida')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Selezione file non valida')),
+        );
         return;
       }
       _currentFileName = path.split('/').last;
@@ -92,8 +98,14 @@ class _HomePageState extends State<HomePage> {
           'Verranno inviati come un unico archivio ZIP al server.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annulla')),
-          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('OK')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annulla'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('OK'),
+          ),
         ],
       ),
     );
@@ -127,16 +139,23 @@ class _HomePageState extends State<HomePage> {
 
       if (filePaths.isEmpty) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nessun file valido selezionato')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nessun file valido selezionato')),
+        );
         return;
       }
 
       // 4) Creazione ZIP in un isolate separato
-      final createdZipPath = await createZipInIsolate(zipPath: zipPath, filePaths: filePaths);
+      final createdZipPath = await createZipInIsolate(
+        zipPath: zipPath,
+        filePaths: filePaths,
+      );
 
       if (createdZipPath == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Errore nella creazione dello ZIP')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Errore nella creazione dello ZIP')),
+        );
         return;
       }
 
@@ -146,7 +165,9 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       final msg = shortError(e);
       setState(() => _lastResult = 'Errore creazione ZIP: $msg');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore creazione ZIP: $msg')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Errore creazione ZIP: $msg')));
     } finally {
       // Pulizia: cancella lo ZIP temporaneo
       if (zipPath != null) {
@@ -174,7 +195,11 @@ class _HomePageState extends State<HomePage> {
     // Non metto setState qui: lo stato viene sistemato nei finally dei metodi di upload.
   }
 
-  Future<void> _uploadFromBytes(Uint8List bytes, String filename, {String? mime}) async {
+  Future<void> _uploadFromBytes(
+    Uint8List bytes,
+    String filename, {
+    String? mime,
+  }) async {
     setState(() {
       _uploading = true;
       _uploadProgress = 0.0;
@@ -196,13 +221,17 @@ class _HomePageState extends State<HomePage> {
       );
       if (res['cancelled'] == true) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload annullato')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Upload annullato')));
         setState(() {
           _lastResult = null;
         });
         return;
       }
-      if (res['ok'] == true && res['remoteUrl'] is String && (res['remoteUrl'] as String).isNotEmpty) {
+      if (res['ok'] == true &&
+          res['remoteUrl'] is String &&
+          (res['remoteUrl'] as String).isNotEmpty) {
         final remoteUrl = res['remoteUrl'] as String;
 
         await AppStorage.addUploadedUrl(remoteUrl);
@@ -216,21 +245,34 @@ class _HomePageState extends State<HomePage> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Upload riuscito'),
-            content: const Text('Indirizzo del file copiato negli appunti.\nVuoi inviarlo per email?'),
+            content: const Text(
+              'Indirizzo del file copiato negli appunti.\nVuoi inviarlo per email?',
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
-              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Sì')),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('No'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Sì'),
+              ),
             ],
           ),
         );
 
         if (wantEmail == true) {
-          final uri = Uri(scheme: 'mailto', queryParameters: {'body': remoteUrl});
+          final uri = Uri(
+            scheme: 'mailto',
+            queryParameters: {'body': remoteUrl},
+          );
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
 
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload riuscito')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Upload riuscito')));
         setState(() => _lastResult = null);
       } else {
         final status = res['status'];
@@ -243,7 +285,12 @@ class _HomePageState extends State<HomePage> {
           builder: (ctx) => AlertDialog(
             title: const Text('Upload fallito'),
             content: Text('Errore: HTTP $status\n\n$body'),
-            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi'))],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Chiudi'),
+              ),
+            ],
           ),
         );
       }
@@ -263,9 +310,11 @@ class _HomePageState extends State<HomePage> {
     // opzionale: verifica che il file esista ancora
     if (!await File(path).exists()) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Il file non è più disponibile sul dispositivo')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Il file non è più disponibile sul dispositivo'),
+        ),
+      );
       return;
     }
 
@@ -287,13 +336,17 @@ class _HomePageState extends State<HomePage> {
       );
       if (res['cancelled'] == true) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload annullato')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Upload annullato')));
         setState(() {
           _lastResult = null;
         });
         return;
       }
-      if (res['ok'] == true && res['remoteUrl'] is String && (res['remoteUrl'] as String).isNotEmpty) {
+      if (res['ok'] == true &&
+          res['remoteUrl'] is String &&
+          (res['remoteUrl'] as String).isNotEmpty) {
         final remoteUrl = res['remoteUrl'] as String;
 
         await AppStorage.addUploadedUrl(remoteUrl);
@@ -307,21 +360,34 @@ class _HomePageState extends State<HomePage> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Upload riuscito'),
-            content: const Text('Indirizzo del file copiato negli appunti.\nVuoi inviarlo per email?'),
+            content: const Text(
+              'Indirizzo del file copiato negli appunti.\nVuoi inviarlo per email?',
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
-              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Sì')),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('No'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Sì'),
+              ),
             ],
           ),
         );
 
         if (wantEmail == true) {
-          final uri = Uri(scheme: 'mailto', queryParameters: {'body': remoteUrl});
+          final uri = Uri(
+            scheme: 'mailto',
+            queryParameters: {'body': remoteUrl},
+          );
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
 
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Upload riuscito')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Upload riuscito')));
         setState(() => _lastResult = null);
       } else {
         final status = res['status'];
@@ -333,7 +399,12 @@ class _HomePageState extends State<HomePage> {
           builder: (ctx) => AlertDialog(
             title: const Text('Upload fallito'),
             content: Text('Errore: HTTP $status\n\n$bodyShort'),
-            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Chiudi'))],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Chiudi'),
+              ),
+            ],
           ),
         );
       }
@@ -365,7 +436,9 @@ class _HomePageState extends State<HomePage> {
                   constraints: const BoxConstraints(maxWidth: 480),
                   child: Card(
                     elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
@@ -375,14 +448,20 @@ class _HomePageState extends State<HomePage> {
                           const SizedBox(height: 12),
                           const Text(
                             'Carica nuovi file sul tuo Cloud',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
                           const Text(
                             'Seleziona uno o più file dal dispositivo.\n'
                             'Verranno caricati in modo sicuro sul tuo server.',
-                            style: TextStyle(fontSize: 13, color: Colors.black54),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.black54,
+                            ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 20),
@@ -393,7 +472,9 @@ class _HomePageState extends State<HomePage> {
                             child: ElevatedButton.icon(
                               onPressed: _uploading ? null : _pickAndUpload,
                               icon: const Icon(Icons.upload_file),
-                              label: Text(_uploading ? 'Caricamento…' : 'Carica file'),
+                              label: Text(
+                                _uploading ? 'Caricamento…' : 'Carica file',
+                              ),
                             ),
                           ),
 
@@ -407,7 +488,8 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(height: 8),
                             LinearProgressIndicator(
-                              value: _uploadProgress, // null = indeterminata, 0..1 = determinata
+                              value:
+                                  _uploadProgress, // null = indeterminata, 0..1 = determinata
                             ),
                             const SizedBox(height: 8),
                             Align(
@@ -445,17 +527,22 @@ class _HomePageState extends State<HomePage> {
                 final uri = Uri.parse('https://www.ercoliconsulting.eu/');
                 final ok = await canLaunchUrl(uri);
                 if (!ok) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('Nessuna app trovata per aprire il sito')));
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Nessuna app trovata per aprire il sito'),
+                    ),
+                  );
                   return;
                 }
-                final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-                if (!launched && mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('Impossibile aprire il sito')));
+                final launched = await launchUrl(
+                  uri,
+                  mode: LaunchMode.externalApplication,
+                );
+                if (!launched && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Impossibile aprire il sito')),
+                  );
                 }
               },
               child: Column(
@@ -463,10 +550,18 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: Image.asset('assets/ercoli_consulting_logo.jpg', width: 32, height: 32, fit: BoxFit.contain),
+                    child: Image.asset(
+                      'assets/ercoli_consulting_logo.jpg',
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   const SizedBox(height: 4),
-                  const Text('Ercoli Consulting', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+                  const Text(
+                    'Ercoli Consulting',
+                    style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                  ),
                 ],
               ),
             ),
@@ -477,7 +572,10 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-Future<String?> createZipInIsolate({required String zipPath, required List<String> filePaths}) async {
+Future<String?> createZipInIsolate({
+  required String zipPath,
+  required List<String> filePaths,
+}) async {
   // Isolate.run esegue il body in un isolate separato
   return Isolate.run<String?>(() {
     try {

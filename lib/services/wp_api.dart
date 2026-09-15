@@ -35,18 +35,26 @@ class WpFileItem {
     return WpFileItem(
       name: (json['name'] ?? json['file'] ?? '') as String,
       url: (json['url'] ?? '') as String,
-      size: json['size'] is int ? json['size'] as int : (json['size'] is num ? (json['size'] as num).toInt() : null),
+      size: json['size'] is int
+          ? json['size'] as int
+          : (json['size'] is num ? (json['size'] as num).toInt() : null),
       mime: json['mime'] as String?,
       modified: json['modified'] is int
           ? json['modified'] as int
-          : (json['modified'] is num ? (json['modified'] as num).toInt() : null),
+          : (json['modified'] is num
+                ? (json['modified'] as num).toInt()
+                : null),
       thumbUrl: json['thumb_url'] as String?,
       thumbWidth: json['thumb_width'] is int
           ? json['thumb_width'] as int
-          : (json['thumb_width'] is num ? (json['thumb_width'] as num).toInt() : null),
+          : (json['thumb_width'] is num
+                ? (json['thumb_width'] as num).toInt()
+                : null),
       thumbHeight: json['thumb_height'] is int
           ? json['thumb_height'] as int
-          : (json['thumb_height'] is num ? (json['thumb_height'] as num).toInt() : null),
+          : (json['thumb_height'] is num
+                ? (json['thumb_height'] as num).toInt()
+                : null),
     );
   }
 }
@@ -60,13 +68,32 @@ class WpFilesResponse {
 
   factory WpFilesResponse.fromJson(Map<String, dynamic> json) {
     final ok = json['ok'] == true;
-    final rawItems = (json['items'] is List) ? (json['items'] as List) : <dynamic>[];
-    final items = rawItems.whereType<Map<String, dynamic>>().map((e) => WpFileItem.fromJson(e)).toList();
-    return WpFilesResponse(ok: ok, items: items, total: (json['total'] is int) ? json['total'] as int : items.length);
+    final rawItems = (json['items'] is List)
+        ? (json['items'] as List)
+        : <dynamic>[];
+    final items = rawItems
+        .whereType<Map<String, dynamic>>()
+        .map((e) => WpFileItem.fromJson(e))
+        .toList();
+    return WpFilesResponse(
+      ok: ok,
+      items: items,
+      total: (json['total'] is int) ? json['total'] as int : items.length,
+    );
   }
 }
 
 class WpApi {
+  static const _restNamespace = 'private-file-uploader/v1';
+
+  static Uri buildRestUri(String baseUrl, String endpoint) {
+    final normalizedBaseUrl = baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+    final normalizedEndpoint = endpoint.replaceFirst(RegExp(r'^/+'), '');
+    return Uri.parse(
+      '$normalizedBaseUrl/wp-json/$_restNamespace/$normalizedEndpoint',
+    );
+  }
+
   // --- CACHE IN MEMORIA PER /files ---
   static WpFilesResponse? _cachedFiles;
   static DateTime? _cachedAt;
@@ -89,7 +116,10 @@ class WpApi {
     if (baseUrl == null || baseUrl.isEmpty) {
       throw Exception('URL non configurato');
     }
-    if (username == null || username.isEmpty || password == null || password.isEmpty) {
+    if (username == null ||
+        username.isEmpty ||
+        password == null ||
+        password.isEmpty) {
       throw Exception('Credenziali mancanti');
     }
 
@@ -104,7 +134,7 @@ class WpApi {
       return _cachedFiles!;
     }
 
-    final uri = Uri.parse('$baseUrl/wp-json/fileuploader/v1/files');
+    final uri = buildRestUri(baseUrl, 'files');
     final auth = base64Encode(utf8.encode('$username:$password'));
     final res = await http.get(uri, headers: {'Authorization': 'Basic $auth'});
 
@@ -112,7 +142,8 @@ class WpApi {
       throw Exception('HTTP ${res.statusCode}: ${res.body}');
     }
 
-    final Map<String, dynamic> json = jsonDecode(res.body) as Map<String, dynamic>;
+    final Map<String, dynamic> json =
+        jsonDecode(res.body) as Map<String, dynamic>;
     final parsed = WpFilesResponse.fromJson(json);
 
     // aggiorniamo la cache
@@ -125,7 +156,7 @@ class WpApi {
   }
 
   /// Esegue l'upload del file come multipart su:
-  /// {baseUrl}/wp-json/fileuploader/v1/upload
+  /// {baseUrl}/wp-json/private-file-uploader/v1/upload
   ///
   /// Salva la URL del server in storage
   static Future<Map<String, dynamic>> uploadFile(
@@ -140,11 +171,14 @@ class WpApi {
     if (baseUrl == null || baseUrl.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'URL non configurato'};
     }
-    if (username == null || username.isEmpty || password == null || password.isEmpty) {
+    if (username == null ||
+        username.isEmpty ||
+        password == null ||
+        password.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
     }
 
-    final uri = Uri.parse('$baseUrl/wp-json/fileuploader/v1/upload');
+    final uri = buildRestUri(baseUrl, 'upload');
     final req = http.MultipartRequest('POST', uri);
 
     final c = client ?? http.Client();
@@ -190,8 +224,11 @@ class WpApi {
         final obj = jsonDecode(body);
         if (obj is Map) {
           // copriamo vari casi comuni
-          remoteUrl = (obj['url'] ?? obj['link'] ?? obj['source_url']) as String?;
-          if (remoteUrl == null && obj['guid'] is Map && obj['guid']['rendered'] is String) {
+          remoteUrl =
+              (obj['url'] ?? obj['link'] ?? obj['source_url']) as String?;
+          if (remoteUrl == null &&
+              obj['guid'] is Map &&
+              obj['guid']['rendered'] is String) {
             remoteUrl = obj['guid']['rendered'] as String;
           }
           if (remoteUrl == null && obj['guid'] is String) {
@@ -207,11 +244,21 @@ class WpApi {
         if (match != null) remoteUrl = match.group(0);
       }
 
-      return {'ok': ok, 'status': res.statusCode, 'body': body, 'remoteUrl': remoteUrl};
+      return {
+        'ok': ok,
+        'status': res.statusCode,
+        'body': body,
+        'remoteUrl': remoteUrl,
+      };
     } on http.ClientException catch (e) {
       // Se abbiamo ricevuto un client esterno è quasi sicuramente una cancellazione
       if (client != null) {
-        return {'ok': false, 'cancelled': true, 'status': 0, 'body': 'Upload cancellato: $e'};
+        return {
+          'ok': false,
+          'cancelled': true,
+          'status': 0,
+          'body': 'Upload cancellato: $e',
+        };
       }
       return {'ok': false, 'status': 0, 'body': 'Errore client HTTP: $e'};
     } on SocketException catch (e) {
@@ -238,11 +285,14 @@ class WpApi {
     if (baseUrl == null || baseUrl.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'URL non configurato'};
     }
-    if (username == null || username.isEmpty || password == null || password.isEmpty) {
+    if (username == null ||
+        username.isEmpty ||
+        password == null ||
+        password.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
     }
 
-    final uri = Uri.parse('$baseUrl/wp-json/fileuploader/v1/upload');
+    final uri = buildRestUri(baseUrl, 'upload');
     final c = client ?? http.Client();
     final req = http.MultipartRequest('POST', uri);
 
@@ -260,7 +310,9 @@ class WpApi {
 
     final byteStream = http.ByteStream(stream);
 
-    final mediaType = (mime != null && mime.contains('/')) ? MediaType(mime.split('/')[0], mime.split('/')[1]) : null;
+    final mediaType = (mime != null && mime.contains('/'))
+        ? MediaType(mime.split('/')[0], mime.split('/')[1])
+        : null;
 
     req.files.add(
       http.MultipartFile(
@@ -282,8 +334,11 @@ class WpApi {
       try {
         final obj = jsonDecode(body);
         if (obj is Map) {
-          remoteUrl = (obj['url'] ?? obj['link'] ?? obj['source_url']) as String?;
-          if (remoteUrl == null && obj['guid'] is Map && obj['guid']['rendered'] is String) {
+          remoteUrl =
+              (obj['url'] ?? obj['link'] ?? obj['source_url']) as String?;
+          if (remoteUrl == null &&
+              obj['guid'] is Map &&
+              obj['guid']['rendered'] is String) {
             remoteUrl = obj['guid']['rendered'] as String;
           }
           if (remoteUrl == null && obj['guid'] is String) {
@@ -297,10 +352,20 @@ class WpApi {
         if (m != null) remoteUrl = m.group(0);
       }
 
-      return {'ok': ok, 'status': res.statusCode, 'body': body, 'remoteUrl': remoteUrl};
+      return {
+        'ok': ok,
+        'status': res.statusCode,
+        'body': body,
+        'remoteUrl': remoteUrl,
+      };
     } on http.ClientException catch (e) {
       if (client != null) {
-        return {'ok': false, 'cancelled': true, 'status': 0, 'body': 'Upload cancellato: $e'};
+        return {
+          'ok': false,
+          'cancelled': true,
+          'status': 0,
+          'body': 'Upload cancellato: $e',
+        };
       }
       return {'ok': false, 'status': 0, 'body': 'Errore client HTTP: $e'};
     } catch (e) {
@@ -320,15 +385,21 @@ class WpApi {
     if (baseUrl == null || baseUrl.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'URL non configurato'};
     }
-    if (username == null || username.isEmpty || password == null || password.isEmpty) {
+    if (username == null ||
+        username.isEmpty ||
+        password == null ||
+        password.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
     }
 
     final encoded = Uri.encodeComponent(fileName);
-    final uri = Uri.parse('$baseUrl/wp-json/fileuploader/v1/files/$encoded');
+    final uri = buildRestUri(baseUrl, 'files/$encoded');
     final auth = base64Encode(utf8.encode('$username:$password'));
 
-    final res = await http.delete(uri, headers: {'Authorization': 'Basic $auth'});
+    final res = await http.delete(
+      uri,
+      headers: {'Authorization': 'Basic $auth'},
+    );
 
     final ok = res.statusCode >= 200 && res.statusCode < 300;
     return {'ok': ok, 'status': res.statusCode, 'body': res.body};
@@ -339,7 +410,11 @@ class WpApi {
     final username = await AppStorage.getUsername() ?? '';
     final password = await AppStorage.getPassword() ?? '';
 
-    return pingWithConfig(baseUrl: baseUrl, username: username, password: password);
+    return pingWithConfig(
+      baseUrl: baseUrl,
+      username: username,
+      password: password,
+    );
   }
 
   static Future<Map<String, dynamic>> pingWithConfig({
@@ -354,13 +429,14 @@ class WpApi {
       return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
     }
 
-    final normalized = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-    final uri = Uri.parse('$normalized/wp-json/fileuploader/v1/ping');
+    final uri = buildRestUri(baseUrl, 'ping');
 
     final auth = base64Encode(utf8.encode('$username:$password'));
 
     try {
-      final res = await http.get(uri, headers: {'Authorization': 'Basic $auth'}).timeout(const Duration(seconds: 10));
+      final res = await http
+          .get(uri, headers: {'Authorization': 'Basic $auth'})
+          .timeout(const Duration(seconds: 10));
 
       final ok = res.statusCode >= 200 && res.statusCode < 300;
 
@@ -374,11 +450,18 @@ class WpApi {
       return {'ok': ok, 'status': res.statusCode, 'body': body};
     } catch (e) {
       final bodyShort = shortError(e, maxChars: 500);
-      return {'ok': false, 'status': 0, 'body': 'Errore di connessione: $bodyShort'};
+      return {
+        'ok': false,
+        'status': 0,
+        'body': 'Errore di connessione: $bodyShort',
+      };
     }
   }
 
-  static Future<Map<String, dynamic>> renameFile(String oldName, String newName) async {
+  static Future<Map<String, dynamic>> renameFile(
+    String oldName,
+    String newName,
+  ) async {
     final baseUrl = await AppStorage.getUrl();
     final username = await AppStorage.getUsername();
     final password = await AppStorage.getPassword();
@@ -386,14 +469,16 @@ class WpApi {
     if (baseUrl == null || baseUrl.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'URL non configurato'};
     }
-    if (username == null || username.isEmpty || password == null || password.isEmpty) {
+    if (username == null ||
+        username.isEmpty ||
+        password == null ||
+        password.isEmpty) {
       return {'ok': false, 'status': 0, 'body': 'Credenziali mancanti'};
     }
 
-    // Es: /wp-json/fileuploader/v1/files/{filename}/rename
-    final normalized = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    // Es: /wp-json/private-file-uploader/v1/files/{filename}/rename
     final encodedOld = Uri.encodeComponent(oldName);
-    final uri = Uri.parse('$normalized/wp-json/fileuploader/v1/files/$encodedOld/rename');
+    final uri = buildRestUri(baseUrl, 'files/$encodedOld/rename');
 
     final auth = base64Encode(utf8.encode('$username:$password'));
 
@@ -401,7 +486,10 @@ class WpApi {
       final res = await http
           .post(
             uri,
-            headers: {'Authorization': 'Basic $auth', 'Content-Type': 'application/json'},
+            headers: {
+              'Authorization': 'Basic $auth',
+              'Content-Type': 'application/json',
+            },
             body: jsonEncode({'new_name': newName}),
           )
           .timeout(const Duration(seconds: 15));

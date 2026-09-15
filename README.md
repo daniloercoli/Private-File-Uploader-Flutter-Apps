@@ -3,7 +3,7 @@
 A privacy-focused mobile client for uploading files directly to **your own WordPress server** via REST API.
 Authentication relies on **WordPress Application Passwords** — no external cloud services involved.
 
-> **Server requirement:** install the dedicated WordPress plugin exposing the `/wp-json/fileuploader/v1/...` endpoints (upload, listing, etc.).
+> **Server requirement:** install the dedicated WordPress plugin exposing the `/wp-json/private-file-uploader/v1/...` endpoints (upload, listing, etc.).
 > After installation, set your **Site URL / Username / Application Password** in **Settings**.
 
 ---
@@ -96,17 +96,25 @@ Authentication relies on **WordPress Application Passwords** — no external clo
 
   * Site URL and username in shared preferences.
   * Password in **secure storage** (KeyStore / EncryptedSharedPreferences on Android).
-* For stricter privacy, consider disabling public direct access to uploads and serving them through an authenticated endpoint (handled by the WordPress plugin).
+* The plugin authenticates file-management operations but returns direct upload URLs. For stricter privacy, add web-server controls or an authenticated download layer that remains compatible with the client.
 
 ---
 
 ## REST Endpoints Used
 
-* **Upload:** `POST {site}/wp-json/fileuploader/v1/upload`
+* **Upload:** `POST {site}/wp-json/private-file-uploader/v1/upload`
   Body: `multipart/form-data` with field `file`
 
-* **List:** `GET {site}/wp-json/fileuploader/v1/files`
-  Example response:
+* **List:** `GET {site}/wp-json/private-file-uploader/v1/files`
+
+* **Connection check:** `GET {site}/wp-json/private-file-uploader/v1/ping`
+
+* **Rename:** `POST {site}/wp-json/private-file-uploader/v1/files/{filename}/rename`
+  Body: JSON with field `new_name`
+
+* **Delete:** `DELETE {site}/wp-json/private-file-uploader/v1/files/{filename}`
+
+### Example list response
 
   ```json
   {
